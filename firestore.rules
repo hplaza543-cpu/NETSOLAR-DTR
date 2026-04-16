@@ -1,0 +1,264 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - role: string (required, enum: ['admin', 'employee', 'intern', 'accounting'])
+    //   - department: string (optional)
+    //   - photoURL: string (optional)
+    //   - createdAt: string (required)
+    //   - targetHours: number (optional, for interns)
+    //   - startDate: string (optional, for interns)
+    //
+    // Collection: dtr_logs
+    // Document ID: {logId}
+    // Fields:
+    //   - userId: string (required)
+    //   - date: string (required)
+    //   - timeIn: string (required)
+    //   - timeOut: string (optional)
+    //   - totalHours: number (optional)
+    //   - status: string (optional, enum: ['on-time', 'late', 'absent', 'incomplete'])
+    //   - activities: string (optional)
+    //   - notes: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Collection: departments
+    // Document ID: {deptId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (optional)
+    //
+    // Collection: leave_requests
+    // Document ID: {requestId}
+    // Fields:
+    //   - userId: string (required)
+    //   - startDate: string (required)
+    //   - endDate: string (required)
+    //   - type: string (required)
+    //   - reason: string (required)
+    //   - status: string (required, enum: ['pending', 'approved', 'rejected'])
+    //   - createdAt: string (required)
+    //
+    // Collection: announcements
+    // Document ID: {announcementId}
+    // Fields:
+    //   - title: string (required)
+    //   - content: string (required)
+    //   - authorId: string (required)
+    //   - authorName: string (required)
+    //   - createdAt: string (required)
+    //
+    // Collection: adjustments
+    // Document ID: {adjustmentId}
+    // Fields:
+    //   - userId: string (required)
+    //   - date: string (required)
+    //   - type: string (required, enum: ['correction', 'overtime'])
+    //   - requestedTimeIn: string (required)
+    //   - requestedTimeOut: string (required)
+    //   - reason: string (required)
+    //   - status: string (required, enum: ['pending', 'approved', 'rejected'])
+    //   - createdAt: string (required)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "HPlaza543@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isAccounting() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'accounting';
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'department', 'photoURL', 'createdAt', 'targetHours', 'startDate']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'employee', 'intern', 'accounting'] &&
+             (!('department' in data) || (data.department is string && data.department.size() < 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 100000)) &&
+             (!('targetHours' in data) || (data.targetHours is number && data.targetHours >= 0)) &&
+             (!('startDate' in data) || (data.startDate is string && data.startDate.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidDTRLog(data) {
+      return hasOnlyAllowedFields(['userId', 'date', 'timeIn', 'timeOut', 'totalHours', 'status', 'activities', 'notes', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             isValidDateString(data.timeIn) &&
+             (!('timeOut' in data) || isValidDateString(data.timeOut)) &&
+             (!('totalHours' in data) || data.totalHours is number && data.totalHours >= 0) &&
+             (!('status' in data) || data.status in ['on-time', 'late', 'absent', 'incomplete']) &&
+             (!('activities' in data) || (data.activities is string && data.activities.size() < 5000)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 5000)) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidDepartment(data) {
+      return hasOnlyAllowedFields(['name', 'description']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 500));
+    }
+
+    function isValidLeaveRequest(data) {
+      return hasOnlyAllowedFields(['userId', 'startDate', 'endDate', 'type', 'reason', 'status', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.startDate is string && data.startDate.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.endDate is string && data.endDate.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.type is string && data.type.size() > 0 && data.type.size() < 50 &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() < 1000 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidAnnouncement(data) {
+      return hasOnlyAllowedFields(['title', 'content', 'authorId', 'authorName', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             data.authorId is string && data.authorId.size() > 0 && data.authorId.size() < 100 &&
+             data.authorName is string && data.authorName.size() > 0 && data.authorName.size() < 100 &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidAdjustment(data) {
+      return hasOnlyAllowedFields(['userId', 'date', 'type', 'requestedTimeIn', 'requestedTimeOut', 'reason', 'status', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.type in ['correction', 'overtime'] &&
+             data.requestedTimeIn is string && data.requestedTimeIn.size() > 0 && data.requestedTimeIn.size() < 10 &&
+             data.requestedTimeOut is string && data.requestedTimeOut.size() > 0 && data.requestedTimeOut.size() < 10 &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() < 1000 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin() || isAccounting();
+      
+      // Allow user to create their own profile, but they cannot make themselves admin unless they are the bootstrapped admin
+      allow create: if isAuthenticated() && 
+                       isOwner(userId) && 
+                       isValidUser(request.resource.data) && 
+                       request.resource.data.uid == userId &&
+                       (request.resource.data.role in ['employee', 'intern', 'accounting'] || isAdmin());
+                       
+      // Allow user to update their own profile, but cannot change their role or uid
+      allow update: if isAuthenticated() && 
+                       isValidUser(request.resource.data) && 
+                       (
+                         (isOwner(userId) && request.resource.data.uid == resource.data.uid && request.resource.data.role == resource.data.role) || 
+                         isAdmin()
+                       );
+                       
+      allow delete: if isAdmin();
+    }
+
+    match /dtr_logs/{logId} {
+      // Users can read their own logs, admins can read all
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || isAccounting());
+      
+      // Users can create their own logs
+      allow create: if isAuthenticated() && 
+                       isValidDTRLog(request.resource.data) && 
+                       request.resource.data.userId == request.auth.uid;
+                       
+      // Users can update their own logs (e.g., clocking out, adding activities)
+      allow update: if isAuthenticated() && 
+                       isValidDTRLog(request.resource.data) && 
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.createdAt == resource.data.createdAt;
+                       
+      allow delete: if isAdmin();
+    }
+
+    match /departments/{deptId} {
+      // Anyone authenticated can read departments
+      allow read: if isAuthenticated();
+      // Only admins can create, update, delete
+      allow create, update, delete: if isAdmin() && isValidDepartment(request.resource.data);
+    }
+
+    match /leave_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || isAccounting());
+      allow create: if isAuthenticated() && 
+                       isValidLeaveRequest(request.resource.data) && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && 
+                       isValidLeaveRequest(request.resource.data) && 
+                       (
+                         (resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId && request.resource.data.status == resource.data.status) ||
+                         isAdmin()
+                       );
+      allow delete: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && isValidAnnouncement(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /adjustments/{adjustmentId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || isAccounting());
+      allow create: if isAuthenticated() && 
+                       isValidAdjustment(request.resource.data) && 
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+      allow update: if isAuthenticated() && 
+                       isValidAdjustment(request.resource.data) && 
+                       (
+                         (resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId && request.resource.data.status == resource.data.status) ||
+                         isAdmin()
+                       );
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the NETSOLAR DTR system.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's Firebase Auth UID."
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "employee", "intern"],
+          "description": "The user's role in the system."
+        },
+        "department": {
+          "type": "string",
+          "description": "The department the user belongs to."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user account was created."
+        }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "DTRLog": {
+      "title": "DTR Log",
+      "description": "A daily time record entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this log."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the log in YYYY-MM-DD format."
+        },
+        "timeIn": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the user clocked in."
+        },
+        "timeOut": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the user clocked out."
+        },
+        "totalHours": {
+          "type": "number",
+          "description": "The total hours worked."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["on-time", "late", "absent", "incomplete"],
+          "description": "The status of the DTR."
+        },
+        "activities": {
+          "type": "string",
+          "description": "Tasks done per day."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the log was created."
+        }
+      },
+      "required": ["userId", "date", "timeIn", "createdAt"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "A department in the company.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the department."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the department."
+        }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/dtr_logs/{logId}": {
+      "schema": { "$ref": "#/entities/DTRLog" },
+      "description": "Stores daily time records."
+    },
+    "/departments/{deptId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "Stores department information."
+    }
+  }
+}
