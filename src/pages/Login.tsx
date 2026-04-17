@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -21,8 +21,50 @@ export default function Login() {
       // If admin login, append dummy domain to username
       const finalEmail = isAdminLogin && !email.includes('@') ? `${email}@admin.netsolar.local` : email;
       
-      const result = await signInWithEmailAndPassword(auth, finalEmail, password);
-      await checkProfileAndNavigate(result.user.uid);
+      try {
+        const result = await signInWithEmailAndPassword(auth, finalEmail, password);
+        
+        // Ensure superadmin doc exists
+        if (isAdminLogin && email === 'superadmin') {
+           const docRef = doc(db, 'users', result.user.uid);
+           const docSnap = await getDoc(docRef);
+           if (!docSnap.exists()) {
+              await setDoc(docRef, {
+                uid: result.user.uid,
+                name: 'Super Admin',
+                email: finalEmail,
+                role: 'admin',
+                department: 'System',
+                createdAt: new Date().toISOString()
+              });
+           }
+        }
+        
+        await checkProfileAndNavigate(result.user.uid);
+      } catch (signInErr: any) {
+        // Automatically bootstrap the superadmin if it doesn't exist
+        if (isAdminLogin && email === 'superadmin' && password === 'angsarapmoharold') {
+           try {
+             const result = await createUserWithEmailAndPassword(auth, finalEmail, password);
+             await setDoc(doc(db, 'users', result.user.uid), {
+               uid: result.user.uid,
+               name: 'Super Admin',
+               email: finalEmail,
+               role: 'admin',
+               department: 'System',
+               createdAt: new Date().toISOString()
+             });
+             await checkProfileAndNavigate(result.user.uid);
+             return;
+           } catch (createErr: any) {
+             if (createErr.code === 'auth/email-already-in-use') {
+               throw new Error('Invalid credentials.');
+             }
+             throw createErr;
+           }
+        }
+        throw signInErr;
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to log in');
     } finally {
@@ -36,9 +78,25 @@ export default function Login() {
       setLoading(true);
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      await checkProfileAndNavigate(result.user.uid);
+      
+      const docRef = doc(db, 'users', result.user.uid);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        await auth.signOut();
+        setError('No account found. Please register first.');
+      } else {
+        const profile = docSnap.data();
+        if (profile.role === 'admin' || profile.role === 'accounting') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to log in with Google');
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message || 'Failed to log in with Google');
+      }
     } finally {
       setLoading(false);
     }
@@ -49,7 +107,8 @@ export default function Login() {
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
-      navigate('/register');
+      await auth.signOut();
+      setError('No account found. Please register first.');
     } else {
       const profile = docSnap.data();
       if (profile.role === 'admin' || profile.role === 'accounting') {

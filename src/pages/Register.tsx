@@ -10,7 +10,7 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<'employee' | 'intern' | 'admin'>('employee');
+  const [role, setRole] = useState<'employee' | 'intern'>('employee');
   const [department, setDepartment] = useState('');
   const [targetHours, setTargetHours] = useState<number | ''>('');
   const [startDate, setStartDate] = useState('');
@@ -65,10 +65,7 @@ export default function Register() {
       setError('');
       setLoading(true);
       
-      // If admin, append dummy domain to username
-      const finalEmail = role === 'admin' && !email.includes('@') ? `${email}@admin.netsolar.local` : email;
-      
-      const result = await createUserWithEmailAndPassword(auth, finalEmail, password);
+      const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name });
       await saveProfile(result.user);
     } catch (err: any) {
@@ -98,6 +95,15 @@ export default function Register() {
         return;
       }
 
+      // If user came via Google and hasn't filled out their profile yet,
+      // and they just clicked the Google button on the Register page.
+      // We should switch them to the 'Complete Profile' mode if they are not already.
+      if (!isGoogleAuthed) {
+        setIsGoogleAuthed(true);
+        setLoading(false);
+        return;
+      }
+
       if (!department.trim()) {
         setError('Please select a department');
         setLoading(false);
@@ -112,7 +118,9 @@ export default function Register() {
 
       await saveProfile(user);
     } catch (err: any) {
-      setError(err.message || 'Failed to register with Google');
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setError(err.message || 'Failed to register with Google');
+      }
     } finally {
       setLoading(false);
     }
@@ -153,14 +161,14 @@ export default function Register() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {role === 'admin' ? 'Username' : 'Email'}
+                    Email
                   </label>
                   <input
-                    type={role === 'admin' ? 'text' : 'email'}
+                    type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={role === 'admin' ? 'e.g. superadmin' : 'name@example.com'}
+                    placeholder="name@example.com"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -183,7 +191,6 @@ export default function Register() {
                   >
                     <option value="employee">Employee</option>
                     <option value="intern">Intern</option>
-                    <option value="admin">Admin</option>
                   </select>
                 </div>
                 <div>
@@ -248,7 +255,6 @@ export default function Register() {
                 >
                   <option value="employee">Employee</option>
                   <option value="intern">Intern</option>
-                  <option value="admin">Admin</option>
                 </select>
               </div>
               <div>
