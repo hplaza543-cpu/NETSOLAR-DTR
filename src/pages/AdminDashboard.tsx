@@ -59,13 +59,17 @@ export default function AdminDashboard() {
   };
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const todayLogs = logs.filter(l => l.date === todayStr);
+
+  // Notifications Data
+  const employeesAndInterns = users.filter(u => u.role !== 'admin' && u.role !== 'accounting');
+  const employeeAndInternIds = new Set(employeesAndInterns.map(u => u.uid));
+  
+  const todayLogs = logs.filter(l => l.date === todayStr && employeeAndInternIds.has(l.userId));
   const lateCount = todayLogs.filter(l => l.status === 'late').length;
   const activeCount = todayLogs.length;
-  
-  // Notifications Data
+
   const clockedInUserIds = new Set(todayLogs.map(l => l.userId));
-  const notClockedInUsers = users.filter(u => !clockedInUserIds.has(u.uid) && u.role !== 'admin' && u.role !== 'accounting');
+  const notClockedInUsers = employeesAndInterns.filter(u => !clockedInUserIds.has(u.uid));
   
   const lateToday = todayLogs.filter(l => l.status === 'late').map(l => {
     const u = users.find(user => user.uid === l.userId);
@@ -78,8 +82,7 @@ export default function AdminDashboard() {
   });
   
   // Live Employee Status
-  const employeeStatuses = users
-    .filter(u => u.role === 'employee' || u.role === 'intern')
+  const employeeStatuses = employeesAndInterns
     .map(user => {
       const log = todayLogs.find(l => l.userId === user.uid);
       let status: 'active-on-time' | 'active-late' | 'completed' | 'absent' = 'absent';
@@ -112,10 +115,11 @@ export default function AdminDashboard() {
   const last7Days = Array.from({ length: 7 }).map((_, i) => {
     const d = subDays(new Date(), 6 - i);
     const dStr = format(d, 'yyyy-MM-dd');
-    const dayLogs = logs.filter(l => l.date === dStr);
+    const dayLogs = logs.filter(l => l.date === dStr && employeeAndInternIds.has(l.userId));
     return {
       name: format(d, 'EEE'),
-      present: dayLogs.length,
+      fullDate: format(d, 'MMM dd, yyyy'),
+      present: dayLogs.filter(l => l.status !== 'absent').length,
       late: dayLogs.filter(l => l.status === 'late').length,
     };
   });
@@ -212,7 +216,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Employees</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{users.length}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{employeesAndInterns.length}</p>
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center">
@@ -252,6 +256,12 @@ export default function AdminDashboard() {
                   <Tooltip 
                     cursor={{ fill: 'rgba(243, 244, 246, 0.5)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-bg-opacity, white)' }}
+                    labelFormatter={(label, payload) => {
+                      if (payload && payload.length > 0) {
+                        return payload[0].payload.fullDate;
+                      }
+                      return label;
+                    }}
                   />
                   <Bar dataKey="present" name="Present" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="late" name="Late" fill="#1F2937" radius={[4, 4, 0, 0]} className="dark:fill-gray-400" />

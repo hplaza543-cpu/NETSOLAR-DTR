@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, getDocs, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, ArrowLeft, Search } from 'lucide-react';
+import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, ArrowLeft, Search, FileText } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
 
 interface UserProfile {
@@ -24,8 +25,11 @@ interface DTRLog {
   id: string;
   userId: string;
   date: string;
+  timeIn?: string;
+  timeOut?: string;
   totalHours: number;
   status: string;
+  activities?: string;
 }
 
 export default function Users() {
@@ -161,6 +165,20 @@ export default function Users() {
       console.error("Error updating user:", error);
       alert("Failed to save changes.");
     }
+  };
+
+  const getAttendanceChartData = (userId: string) => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = subDays(new Date(), 6 - i);
+      const dStr = format(d, 'yyyy-MM-dd');
+      const dayLogs = logs.filter(l => l.userId === userId && l.date === dStr);
+      return {
+        name: format(d, 'EEE'),
+        fullDate: format(d, 'MMM dd, yyyy'),
+        present: dayLogs.filter(l => l.status !== 'absent').length,
+        late: dayLogs.filter(l => l.status === 'late').length,
+      };
+    });
   };
 
   const calculateInternProgress = (userId: string, targetHours: number = 0) => {
@@ -479,6 +497,60 @@ export default function Users() {
                     </div>
                   )}
                 </div>
+              </div>
+              
+              {/* Individual Chart & Reports */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 border-t border-gray-100 dark:border-gray-700 pt-6">
+                 {/* Attendance Chart */}
+                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
+                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Attendance Overview (7 Days)</h4>
+                   <div className="h-48">
+                     <ResponsiveContainer width="100%" height="100%">
+                       <BarChart data={getAttendanceChartData(selectedUser.uid)}>
+                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" className="dark:stroke-gray-700" />
+                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
+                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} width={30} />
+                         <Tooltip 
+                           cursor={{ fill: 'rgba(243, 244, 246, 0.5)' }}
+                           contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-bg-opacity, white)' }}
+                           labelFormatter={(label, payload) => {
+                             if (payload && payload.length > 0) {
+                               return payload[0].payload.fullDate;
+                             }
+                             return label;
+                           }}
+                         />
+                         <Bar dataKey="present" name="Present" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                         <Bar dataKey="late" name="Late" fill="#1F2937" radius={[4, 4, 0, 0]} className="dark:fill-gray-400" />
+                       </BarChart>
+                     </ResponsiveContainer>
+                   </div>
+                 </div>
+
+                 {/* Recent Activity/Accomplishments */}
+                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 flex flex-col h-64">
+                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                     <FileText className="w-4 h-4 mr-2 text-indigo-500" />
+                     Recent Activities
+                   </h4>
+                   <div className="overflow-y-auto pr-2 space-y-3 custom-scrollbar flex-1">
+                     {(() => {
+                       const userLogs = logs
+                         .filter(log => log.userId === selectedUser.uid && log.activities)
+                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                         .slice(0, 10);
+                       
+                       if (userLogs.length === 0) return <p className="text-sm text-gray-500 dark:text-gray-400">No recent activities logged.</p>;
+                       
+                       return userLogs.map(log => (
+                         <div key={log.id} className="text-sm border-l-2 border-indigo-200 dark:border-indigo-900/50 pl-3 py-1">
+                           <p className="font-medium text-gray-900 dark:text-white">{format(new Date(log.date), 'MMM dd, yyyy')}</p>
+                           <p className="text-gray-600 dark:text-gray-300 mt-1 whitespace-pre-wrap">{log.activities}</p>
+                         </div>
+                       ));
+                     })()}
+                   </div>
+                 </div>
               </div>
             </div>
           ) : (

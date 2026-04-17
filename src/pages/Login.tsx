@@ -84,7 +84,7 @@ export default function Login() {
       
       if (!docSnap.exists()) {
         await auth.signOut();
-        setError('No account found. Please register first.');
+        setError('No account yet? register first.');
       } else {
         const profile = docSnap.data();
         if (profile.role === 'admin' || profile.role === 'accounting') {
@@ -108,7 +108,7 @@ export default function Login() {
     
     if (!docSnap.exists()) {
       await auth.signOut();
-      setError('No account found. Please register first.');
+      setError('No account yet? register first.');
     } else {
       const profile = docSnap.data();
       if (profile.role === 'admin' || profile.role === 'accounting') {

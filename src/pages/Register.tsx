@@ -100,6 +100,15 @@ export default function Register() {
       // We should switch them to the 'Complete Profile' mode if they are not already.
       if (!isGoogleAuthed) {
         setIsGoogleAuthed(true);
+        if (user.displayName) {
+          setName(user.displayName);
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (!name.trim()) {
+        setError('Please provide your full name');
         setLoading(false);
         return;
       }
@@ -246,6 +255,17 @@ export default function Register() {
             </form>
           ) : (
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="Your full name"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
                 <select
