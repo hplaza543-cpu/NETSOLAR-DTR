@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import Layout from '../components/Layout';
 import { Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { logAuditAction } from '../lib/audit';
 
 interface LeaveRequest {
   id: string;
@@ -87,6 +88,14 @@ export default function LeaveRequests() {
       };
       
       await addDoc(collection(db, 'leave_requests'), newRequest);
+      
+      await logAuditAction(
+        profile.uid,
+        profile.name,
+        'create_leave_request',
+        `Submitted a ${type} leave request from ${startDate} to ${endDate}`
+      );
+      
       setStartDate('');
       setEndDate('');
       setType('Vacation');
@@ -101,8 +110,18 @@ export default function LeaveRequests() {
   };
 
   const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+    if (!profile) return;
     try {
       await updateDoc(doc(db, 'leave_requests', id), { status });
+      
+      await logAuditAction(
+        profile.uid,
+        profile.name,
+        'update_leave_request',
+        `Marked leave request ${id} as ${status}`,
+        id
+      );
+      
       fetchRequests();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `leave_requests/${id}`);

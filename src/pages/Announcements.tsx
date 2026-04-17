@@ -110,28 +110,28 @@ export default function Announcements() {
         )}
 
         {showForm && isAdmin && (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">Post an Announcement</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Post an Announcement</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="e.g. Holiday Notice"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
                 <textarea
                   required
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Write your announcement here..."
                 />
               </div>
@@ -148,33 +148,33 @@ export default function Announcements() {
 
         <div className="space-y-4">
           {announcements.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-              <Megaphone className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No announcements at this time.</p>
+            <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+              <Megaphone className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">No announcements at this time.</p>
             </div>
           ) : (
             announcements.map(announcement => (
-              <div key={announcement.id} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative group">
+              <div key={announcement.id} className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative group">
                 {isAdmin && (
                   <button
                     onClick={() => handleDelete(announcement.id)}
-                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                    className="absolute top-4 right-4 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
                 <div className="flex items-center space-x-2 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-500">
                     <Megaphone className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{announcement.title}</h3>
-                    <p className="text-xs text-gray-500">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{announcement.title}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       Posted by {announcement.authorName} • {format(new Date(announcement.createdAt), 'MMM d, yyyy h:mm a')}
                     </p>
                   </div>
                 </div>
-                <div className="text-gray-700 whitespace-pre-wrap pl-10">
+                <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap pl-10">
                   {announcement.content}
                 </div>
               </div>

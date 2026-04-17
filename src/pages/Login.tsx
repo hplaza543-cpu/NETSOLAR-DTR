@@ -9,6 +9,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const navigate = useNavigate();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -16,7 +17,11 @@ export default function Login() {
     try {
       setError('');
       setLoading(true);
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // If admin login, append dummy domain to username
+      const finalEmail = isAdminLogin && !email.includes('@') ? `${email}@admin.netsolar.local` : email;
+      
+      const result = await signInWithEmailAndPassword(auth, finalEmail, password);
       await checkProfileAndNavigate(result.user.uid);
     } catch (err: any) {
       setError(err.message || 'Failed to log in');
@@ -56,38 +61,59 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-amber-500 rounded-full flex items-center justify-center mb-4 text-white">
             <span className="font-bold text-2xl">N</span>
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 tracking-tight">NETSOLAR</h2>
-          <p className="mt-2 text-sm text-gray-500">Daily Time Record System</p>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">NETSOLAR</h2>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Daily Time Record System</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-500 p-3 rounded-lg text-sm text-center">
+          <div className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 p-3 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleEmailLogin} className="mt-8 space-y-6">
+          {/* Admin Login Toggle */}
+          <div className="flex justify-center mb-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminLogin(!isAdminLogin);
+                setEmail('');
+                setPassword('');
+                setError('');
+              }}
+              className={`text-sm font-medium px-4 py-2 rounded-full transition-colors ${
+                isAdminLogin ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {isAdminLogin ? 'Switch to Employee Login' : 'Admin Login (Username)'}
+            </button>
+          </div>
+
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {isAdminLogin ? 'Admin Username' : 'Email'}
+              </label>
               <input
-                type="email"
+                type={isAdminLogin ? 'text' : 'email'}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                placeholder={isAdminLogin ? 'e.g. superadmin' : 'name@example.com'}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700">Password</label>
-                <Link to="/forgot-password" className="text-xs font-medium text-amber-600 hover:text-amber-500">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                <Link to="/forgot-password" className="text-xs font-medium text-amber-600 dark:text-amber-500 hover:text-amber-500 dark:hover:text-amber-400">
                   Forgot password?
                 </Link>
               </div>
@@ -96,7 +122,7 @@ export default function Login() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
           </div>
@@ -113,10 +139,10 @@ export default function Login() {
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">Or continue with</span>
             </div>
           </div>
 
@@ -124,7 +150,7 @@ export default function Login() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex justify-center items-center py-3 px-4 border-2 border-gray-200 hover:border-gray-300 rounded-xl bg-white text-[15px] font-semibold text-gray-700 transition-colors disabled:opacity-50"
+              className="w-full flex justify-center items-center py-3 px-4 border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 rounded-xl bg-white dark:bg-gray-700 text-[15px] font-semibold text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -137,9 +163,9 @@ export default function Login() {
           </div>
         </div>
         
-        <div className="text-center text-sm text-gray-500 mt-6">
+        <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
           Don't have an account?{' '}
-          <Link to="/register" className="font-medium text-amber-600 hover:text-amber-500">
+          <Link to="/register" className="font-medium text-amber-600 dark:text-amber-500 hover:text-amber-500 dark:hover:text-amber-400">
             Register here
           </Link>
         </div>

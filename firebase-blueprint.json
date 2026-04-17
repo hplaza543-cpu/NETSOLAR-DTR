@@ -98,9 +98,93 @@
         }
       },
       "required": ["name"]
+    },
+    "Adjustment": {
+      "title": "Adjustment",
+      "description": "A request for a time correction or overtime.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who requested the adjustment."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the adjustment in YYYY-MM-DD format."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["correction", "overtime"],
+          "description": "The type of adjustment."
+        },
+        "requestedTimeIn": {
+          "type": "string",
+          "description": "The newly requested time in."
+        },
+        "requestedTimeOut": {
+          "type": "string",
+          "description": "The newly requested time out."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason for the adjustment."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "The status of the adjustment request."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the request was created."
+        }
+      },
+      "required": ["userId", "date", "type", "requestedTimeIn", "requestedTimeOut", "reason", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "Audit Log",
+      "description": "A record of significant actions performed in the system.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who performed the action."
+        },
+        "userName": {
+          "type": "string",
+          "description": "The name of the user who performed the action."
+        },
+        "action": {
+          "type": "string",
+          "description": "The type of action performed (e.g., 'update_role', 'create_user', 'modify_dtr')."
+        },
+        "details": {
+          "type": "string",
+          "description": "Human-readable details of the action."
+        },
+        "targetId": {
+          "type": "string",
+          "description": "The ID of the affected resource (user ID, log ID, etc.)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the action occurred."
+        }
+      },
+      "required": ["userId", "userName", "action", "details", "createdAt"]
     }
   },
   "firestore": {
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Stores audit logs."
+    },
+    "/adjustments/{adjustmentId}": {
+      "schema": { "$ref": "#/entities/Adjustment" },
+      "description": "Stores adjustment requests."
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Stores user profiles."

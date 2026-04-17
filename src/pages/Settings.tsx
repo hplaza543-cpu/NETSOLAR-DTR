@@ -4,10 +4,10 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import Layout from '../components/Layout';
 
-const DEPARTMENTS = ['Project Engineer', 'HR', 'Marketing', 'Accounting', 'Sales', 'Operations', 'SPT', 'O&M', 'HOME', 'Other'];
+const DEPARTMENTS = ['Project Management Engineer', 'HR', 'Marketing', 'Accounting', 'Sales', 'Operations', 'SPT', 'O&M', 'HOME', 'Other'];
 
 export default function Settings() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [department, setDepartment] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [loading, setLoading] = useState(false);
@@ -75,7 +75,8 @@ export default function Settings() {
         department,
         photoURL
       });
-      setMessage('Profile updated successfully! Refresh to see changes.');
+      await refreshProfile();
+      setMessage('Profile updated successfully!');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
       setMessage('Failed to update profile.');
@@ -86,23 +87,23 @@ export default function Settings() {
 
   return (
     <Layout title="Settings">
-      <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-2xl">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Settings</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 max-w-2xl">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Profile Settings</h2>
         
         {message && (
-          <div className={`p-4 mb-6 rounded-lg text-sm ${message.includes('success') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <div className={`p-4 mb-6 rounded-lg text-sm ${message.includes('success') ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`}>
             {message}
           </div>
         )}
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Profile Picture</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture</label>
             <div className="flex items-center space-x-4">
               <img 
                 src={photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${profile?.name}`} 
                 alt="Avatar Preview" 
-                className="w-16 h-16 rounded-full object-cover bg-gray-100 border border-gray-200"
+                className="w-16 h-16 rounded-full object-cover bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
               />
               <div className="flex-1">
                 <input
@@ -115,7 +116,7 @@ export default function Settings() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors"
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-colors"
                 >
                   Upload Image
                 </button>
@@ -123,22 +124,22 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={() => setPhotoURL(profile?.photoURL || '')}
-                    className="ml-3 px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                    className="ml-3 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                   >
                     Cancel
                   </button>
                 )}
               </div>
             </div>
-            <p className="mt-2 text-xs text-gray-500">Upload an image (max 256x256). It will be resized automatically.</p>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Upload an image (max 256x256). It will be resized automatically.</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">Select Department</option>
               {DEPARTMENTS.map(d => (

@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import Layout from '../components/Layout';
 import { Edit3, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { logAuditAction } from '../lib/audit';
 
 interface AdjustmentRequest {
   id: string;
@@ -85,6 +86,14 @@ export default function Adjustments() {
       };
       
       await addDoc(collection(db, 'adjustments'), newRequest);
+      
+      await logAuditAction(
+        profile.uid,
+        profile.name,
+        'create_adjustment',
+        `Submitted an adjustment request for ${date}`,
+      );
+      
       setDate('');
       setType('correction');
       setRequestedTimeIn('');
@@ -100,8 +109,17 @@ export default function Adjustments() {
   };
 
   const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+    if (!profile) return;
     try {
       await updateDoc(doc(db, 'adjustments', id), { status });
+      
+      await logAuditAction(
+        profile.uid,
+        profile.name,
+        'update_adjustment',
+        `Marked adjustment request ${id} as ${status}`,
+        id
+      );
       fetchRequests();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `adjustments/${id}`);
@@ -142,26 +160,26 @@ export default function Adjustments() {
         )}
 
         {showForm && !isAdmin && (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">Submit Adjustment Request</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Submit Adjustment Request</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="correction">Time Correction</option>
                     <option value="overtime">Overtime Request</option>
@@ -170,34 +188,34 @@ export default function Adjustments() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Requested Time In</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requested Time In</label>
                   <input
                     type="time"
                     required
                     value={requestedTimeIn}
                     onChange={(e) => setRequestedTimeIn(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Requested Time Out</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Requested Time Out</label>
                   <input
                     type="time"
                     required
                     value={requestedTimeOut}
                     onChange={(e) => setRequestedTimeOut(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
                 <textarea
                   required
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Explain why you are requesting this adjustment..."
                 />
               </div>
@@ -212,33 +230,33 @@ export default function Adjustments() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">{isAdmin ? 'All Adjustment Requests' : 'My Requests'}</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{isAdmin ? 'All Adjustment Requests' : 'My Requests'}</h3>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {requests.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">No adjustment requests found.</div>
+              <div className="p-6 text-center text-gray-500 dark:text-gray-400">No adjustment requests found.</div>
             ) : (
               requests.map(request => (
                 <div key={request.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-start space-x-4">
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <Edit3 className="w-6 h-6 text-gray-500" />
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <Edit3 className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-semibold text-gray-900 capitalize">{request.type}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white capitalize">{request.type}</span>
                         {getStatusBadge(request.status)}
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                         Date: {format(new Date(request.date), 'MMM d, yyyy')}
                       </p>
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                         Requested Times: {request.requestedTimeIn} - {request.requestedTimeOut}
                       </p>
-                      <p className="text-sm text-gray-500 italic">"{request.reason}"</p>
-                      <p className="text-xs text-gray-400 mt-2">Submitted on {format(new Date(request.createdAt), 'MMM d, yyyy')}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">"{request.reason}"</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Submitted on {format(new Date(request.createdAt), 'MMM d, yyyy')}</p>
                     </div>
                   </div>
                   
@@ -246,13 +264,13 @@ export default function Adjustments() {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'approved')}
-                        className="px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
+                        className="px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg text-sm font-medium transition-colors"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'rejected')}
-                        className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors"
+                        className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-sm font-medium transition-colors"
                       >
                         Reject
                       </button>

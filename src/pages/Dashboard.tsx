@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, orderBy } from 'firebase/firestore';
-import { format } from 'date-fns';
+import { format, isThursday, isWednesday, nextWednesday, previousThursday } from 'date-fns';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
+import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
 import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -99,8 +100,15 @@ export default function Dashboard() {
       setActionLoading(true);
       const now = new Date();
       
-      // Check if late (after 10:00 AM)
-      const isLate = now.getHours() >= 10 && now.getMinutes() > 0;
+      // Check if late
+      let isLate = false;
+      if (profile?.role === 'intern') {
+        // Interns are late if they time in after 8:30 AM
+        isLate = now.getHours() > 8 || (now.getHours() === 8 && now.getMinutes() > 30);
+      } else {
+        // Employees are late if they time in after 10:00 AM (or based on previous logic)
+        isLate = now.getHours() >= 10 && now.getMinutes() > 0;
+      }
       
       const newLog = {
         userId: user.uid,
@@ -111,6 +119,15 @@ export default function Dashboard() {
       };
 
       const docRef = await addDoc(collection(db, 'dtr_logs'), newLog);
+      
+      await logAuditAction(
+        profile?.uid || user.uid,
+        profile?.name || user.email || 'Unknown User',
+        'time_in',
+        `Timed in at ${format(now, 'hh:mm a')}`,
+        docRef.id
+      );
+      
       setTodayLog({ id: docRef.id, ...newLog });
       fetchLogs();
     } catch (error) {
@@ -143,6 +160,14 @@ export default function Dashboard() {
         activities,
         notes
       });
+      
+      await logAuditAction(
+        profile?.uid || user.uid,
+        profile?.name || user.email || 'Unknown User',
+        'time_out',
+        `Timed out at ${format(now, 'hh:mm a')}. Logged ${totalHours} hours.`,
+        todayLog.id
+      );
 
       setTodayLog({ ...todayLog, timeOut: now.toISOString(), totalHours, activities, notes });
       fetchLogs();
@@ -170,6 +195,39 @@ export default function Dashboard() {
     }
   };
 
+  const calculateCurrentAllowance = () => {
+    if (!profile || profile.role !== 'intern' || !profile.dailyAllowance) return null;
+    
+    const today = new Date();
+    let start, end;
+    
+    if (isThursday(today)) {
+      start = today;
+      end = nextWednesday(today);
+    } else if (isWednesday(today)) {
+      start = previousThursday(today);
+      end = today;
+    } else {
+      start = previousThursday(today);
+      end = nextWednesday(today);
+    }
+    
+    const startStr = format(start, 'yyyy-MM-dd');
+    const endStr = format(end, 'yyyy-MM-dd');
+    
+    const periodLogs = recentLogs.filter(log => {
+      return log.date >= startStr && log.date <= endStr && log.status !== 'absent';
+    });
+
+    const daysPresent = periodLogs.length;
+    return {
+      days: daysPresent,
+      total: daysPresent * profile.dailyAllowance,
+      startStr,
+      endStr
+    };
+  };
+
   const effectiveDate = selectedDate || todayStr;
   const displayedLogs = recentLogs.filter(log => log.date === effectiveDate);
 
@@ -185,28 +243,69 @@ export default function Dashboard() {
 
   return (
     <Layout title="My Daily Time Record">
-      {profile?.role === 'intern' && profile.targetHours && (
-        <div className="mb-6 bg-white p-5 rounded-xl border border-gray-200">
-          <div className="flex justify-between items-end mb-2">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Internship Progress</h3>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {(cumulativeHours + activeSessionHours).toFixed(2)} <span className="text-sm font-medium text-gray-500">/ {profile.targetHours} hrs</span>
-              </p>
+      {profile?.role === 'intern' && (
+        <div className="mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+          {profile.targetHours ? (
+            <>
+              <div className="flex justify-between items-end mb-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Internship Progress</h3>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                    {(cumulativeHours + activeSessionHours).toFixed(2)} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">/ {profile.targetHours} hrs</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Started: {profile.startDate ? format(new Date(profile.startDate), 'MMM d, yyyy') : 'N/A'}</p>
+                  <p className="text-sm font-medium text-amber-600 dark:text-amber-500 mt-1">
+                    {Math.min(100, Math.round(((cumulativeHours + activeSessionHours) / profile.targetHours) * 100))}% Completed
+                  </p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 mt-3 overflow-hidden">
+                <div 
+                  className="bg-amber-500 h-2.5 rounded-full transition-all duration-500" 
+                  style={{ width: `${Math.min(100, ((cumulativeHours + activeSessionHours) / profile.targetHours) * 100)}%` }}
+                ></div>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between items-end mb-2">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Internship Progress</h3>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {(cumulativeHours + activeSessionHours).toFixed(2)} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">hrs completed</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Started: {profile.startDate ? format(new Date(profile.startDate), 'MMM d, yyyy') : 'N/A'}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Started: {profile.startDate ? format(new Date(profile.startDate), 'MMM d, yyyy') : 'N/A'}</p>
-              <p className="text-sm font-medium text-amber-600 mt-1">
-                {Math.min(100, Math.round(((cumulativeHours + activeSessionHours) / profile.targetHours) * 100))}% Completed
-              </p>
-            </div>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5 mt-3 overflow-hidden">
-            <div 
-              className="bg-amber-500 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${Math.min(100, ((cumulativeHours + activeSessionHours) / profile.targetHours) * 100)}%` }}
-            ></div>
-          </div>
+          )}
+
+          {(() => {
+            const allowance = calculateCurrentAllowance();
+            if (!allowance) return null;
+            return (
+              <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Current Cut-off Allowance</h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {format(new Date(allowance.startStr), 'MMM d')} - {format(new Date(allowance.endStr), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      ₱{allowance.total.toLocaleString()}
+                    </p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
+                      {allowance.days} days present (₱{profile.dailyAllowance}/day)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -214,15 +313,15 @@ export default function Dashboard() {
         
         {/* Action Card */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white rounded-[20px] border border-gray-200 p-10 text-center relative">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 hidden">Today's Status</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-[20px] border border-gray-200 dark:border-gray-700 p-10 text-center relative">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 hidden">Today's Status</h2>
             
             {!todayLog ? (
               <div className="text-center">
-                <div className="text-[48px] font-bold text-gray-900 mb-2">
+                <div className="text-[48px] font-bold text-gray-900 dark:text-white mb-2">
                   {format(new Date(), 'hh:mm a')}
                 </div>
-                <div className="text-gray-500 mb-8 uppercase tracking-[0.05em] text-[13px]">
+                <div className="text-gray-500 dark:text-gray-400 mb-8 uppercase tracking-[0.05em] text-[13px]">
                   {format(new Date(), 'EEEE, MMMM d, yyyy')}
                 </div>
                 <button
@@ -235,58 +334,58 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                   <div>
-                    <p className="text-sm text-gray-500">Time In</p>
-                    <p className="font-semibold text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Time In</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">
                       {format(new Date(todayLog.timeIn), 'hh:mm a')}
                     </p>
                   </div>
                   {todayLog.status === 'late' ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
                       <AlertCircle className="w-3 h-3 mr-1" /> Late
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                       <CheckCircle2 className="w-3 h-3 mr-1" /> On Time
                     </span>
                   )}
                 </div>
 
                 {!todayLog.timeOut && (
-                  <div className="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-900/30">
                     <div>
-                      <p className="text-sm text-amber-700 font-medium">Active Session</p>
-                      <p className="text-xs text-amber-600/80 mt-0.5">Tracking time automatically...</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-500 font-medium">Active Session</p>
+                      <p className="text-xs text-amber-600/80 dark:text-amber-500/80 mt-0.5">Tracking time automatically...</p>
                     </div>
-                    <div className="text-xl font-bold text-amber-600 font-mono">
+                    <div className="text-xl font-bold text-amber-600 dark:text-amber-500 font-mono">
                       {Math.floor(activeSessionHours)}h {Math.floor((activeSessionHours % 1) * 60)}m
                     </div>
                   </div>
                 )}
 
                 {todayLog.timeOut ? (
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                     <div>
-                      <p className="text-sm text-gray-500">Time Out</p>
-                      <p className="font-semibold text-gray-900">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Time Out</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
                         {format(new Date(todayLog.timeOut), 'hh:mm a')}
                       </p>
                     </div>
-                    <span className="text-sm font-medium text-gray-600">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
                       {todayLog.totalHours} hrs
                     </span>
                   </div>
                 ) : (
-                  <div className="pt-4 space-y-4 border-t border-gray-100">
+                  <div className="pt-4 space-y-4 border-t border-gray-100 dark:border-gray-700">
                     {error && (
-                      <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start">
+                      <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm flex items-start">
                         <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
                         <span>{error}</span>
                       </div>
                     )}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Daily Activities / Tasks <span className="text-red-500">*</span>
                       </label>
                       <textarea
@@ -297,18 +396,18 @@ export default function Dashboard() {
                         }}
                         rows={3}
                         placeholder="What did you work on today? (Required before Time Out)"
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm ${error ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${error ? 'border-red-300 dark:border-red-500/50 bg-red-50 dark:bg-red-900/10' : 'border-gray-300 dark:border-gray-600'}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Notes (Optional)
                       </label>
                       <input
                         type="text"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                       />
                     </div>
                     
@@ -323,7 +422,7 @@ export default function Dashboard() {
                       <button
                         onClick={handleTimeOut}
                         disabled={actionLoading}
-                        className="flex-1 py-4 px-8 bg-transparent border-2 border-gray-200 hover:border-gray-300 text-gray-800 font-semibold rounded-full transition-colors disabled:opacity-50 text-[15px]"
+                        className="flex-1 py-4 px-8 bg-transparent border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 text-gray-800 dark:text-gray-200 font-semibold rounded-full transition-colors disabled:opacity-50 text-[15px]"
                       >
                         TIME OUT
                       </button>
@@ -337,21 +436,21 @@ export default function Dashboard() {
 
         {/* History */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 gap-4">
-              <h2 className="text-[16px] font-semibold text-gray-900">Activity Log</h2>
+              <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white">Activity Log</h2>
               <div className="flex items-center space-x-2">
                 <input
                   type="date"
                   value={effectiveDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   max={todayStr}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-700"
+                  className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700"
                 />
                 {selectedDate && selectedDate !== todayStr && (
                   <button
                     onClick={() => setSelectedDate('')}
-                    className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   >
                     Today
                   </button>
@@ -360,29 +459,29 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-col">
               {displayedLogs.length === 0 ? (
-                <div className="py-8 text-center text-gray-500">No logs found for {format(new Date(effectiveDate), 'MMM d, yyyy')}.</div>
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">No logs found for {format(new Date(effectiveDate), 'MMM d, yyyy')}.</div>
               ) : (
                 displayedLogs.map((log) => (
-                  <div key={log.id} className="flex flex-col py-3 border-b border-gray-200 last:border-0 text-[14px]">
+                  <div key={log.id} className="flex flex-col py-3 border-b border-gray-200 dark:border-gray-700 last:border-0 text-[14px]">
                     <div className="flex items-start">
-                      <span className="w-[80px] text-gray-500 font-mono shrink-0">
+                      <span className="w-[80px] text-gray-500 dark:text-gray-400 font-mono shrink-0">
                         {format(new Date(log.timeIn), 'hh:mm a')}
                       </span>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <span className="font-medium text-gray-900">
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
                             {format(new Date(log.date), 'MMM d, yyyy')}
                           </span>
                           {log.status === 'late' && (
-                            <span className="px-2 py-0.5 rounded text-[11px] uppercase bg-amber-100 text-amber-600 font-medium">Late</span>
+                            <span className="px-2 py-0.5 rounded text-[11px] uppercase bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">Late</span>
                           )}
                         </div>
                         {log.activities ? (
-                          <span className="text-gray-800">{log.activities}</span>
+                          <span className="text-gray-800 dark:text-gray-300">{log.activities}</span>
                         ) : (
-                          <span className="text-gray-400 italic">No activities logged</span>
+                          <span className="text-gray-400 dark:text-gray-500 italic">No activities logged</span>
                         )}
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Out: {log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : 'Active'} 
                           {log.totalHours && ` • ${log.totalHours} hrs`}
                         </div>

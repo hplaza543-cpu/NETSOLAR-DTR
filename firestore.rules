@@ -111,7 +111,7 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'department', 'photoURL', 'createdAt', 'targetHours', 'startDate']) &&
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'department', 'photoURL', 'createdAt', 'targetHours', 'startDate', 'dailyAllowance', 'salary']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
@@ -120,6 +120,8 @@ service cloud.firestore {
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 100000)) &&
              (!('targetHours' in data) || (data.targetHours is number && data.targetHours >= 0)) &&
              (!('startDate' in data) || (data.startDate is string && data.startDate.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
+             (!('dailyAllowance' in data) || (data.dailyAllowance is number && data.dailyAllowance >= 0)) &&
+             (!('salary' in data) || (data.salary is number && data.salary >= 0)) &&
              isValidDateString(data.createdAt);
     }
 
@@ -174,10 +176,29 @@ service cloud.firestore {
              isValidDateString(data.createdAt);
     }
 
+    function isValidAuditLog(data) {
+      return hasOnlyAllowedFields(['userId', 'userName', 'action', 'details', 'targetId', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() < 100 &&
+             data.action is string && data.action.size() > 0 && data.action.size() < 100 &&
+             data.details is string && data.details.size() > 0 && data.details.size() < 5000 &&
+             (!('targetId' in data) || (data.targetId is string && data.targetId.size() < 100)) &&
+             isValidDateString(data.createdAt);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
     
+    match /audit_logs/{logId} {
+      // Only admins and accounting can read audit logs
+      allow read: if isAdmin() || isAccounting();
+      // Any authenticated user can create an audit log (e.g., when they time in or out)
+      allow create: if isAuthenticated() && isValidAuditLog(request.resource.data);
+      // Audit logs are immutable
+      allow update, delete: if false;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin() || isAccounting();
       
@@ -186,7 +207,7 @@ service cloud.firestore {
                        isOwner(userId) && 
                        isValidUser(request.resource.data) && 
                        request.resource.data.uid == userId &&
-                       (request.resource.data.role in ['employee', 'intern', 'accounting'] || isAdmin());
+                       (request.resource.data.role in ['employee', 'intern', 'accounting', 'admin'] || isAdmin());
                        
       // Allow user to update their own profile, but cannot change their role or uid
       allow update: if isAuthenticated() && 

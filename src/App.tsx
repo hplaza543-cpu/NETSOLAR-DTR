@@ -1,16 +1,19 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { ThemeProvider } from './lib/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import Users from './pages/Users';
 import Settings from './pages/Settings';
 import Announcements from './pages/Announcements';
 import LeaveRequests from './pages/LeaveRequests';
 import Timesheets from './pages/Timesheets';
 import Adjustments from './pages/Adjustments';
+import AuditLogs from './pages/AuditLogs';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) {
   const { user, profile, loading } = useAuth();
@@ -61,6 +64,22 @@ function AppRoutes() {
         } 
       />
       <Route 
+        path="/admin/users" 
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'accounting']}>
+            <Users />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/audit-logs" 
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'accounting']}>
+            <AuditLogs />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
         path="/settings" 
         element={
           <ProtectedRoute>
@@ -106,10 +125,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
