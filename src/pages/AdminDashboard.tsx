@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import Layout from '../components/Layout';
 import { format, subDays, isSameDay } from 'date-fns';
@@ -45,8 +45,15 @@ export default function AdminDashboard() {
       usersSnap.forEach(doc => usersData.push({ uid: doc.id, ...doc.data() } as UserProfile));
       setUsers(usersData);
 
-      // Fetch logs
-      const logsSnap = await getDocs(collection(db, 'dtr_logs'));
+      // We only need logs for the last 7 days and current month for the dashboard features
+      // To keep query simple and leverage string dates: 
+      // yyyy-MM-dd allows lexicographical comparison
+      const d7 = subDays(new Date(), 7);
+      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const minDate = d7 < startOfMonth ? format(d7, 'yyyy-MM-dd') : format(startOfMonth, 'yyyy-MM-dd');
+      
+      const logsQuery = query(collection(db, 'dtr_logs'), where('date', '>=', minDate));
+      const logsSnap = await getDocs(logsQuery);
       const logsData: DTRLog[] = [];
       logsSnap.forEach(doc => logsData.push({ id: doc.id, ...doc.data() } as DTRLog));
       setLogs(logsData);
@@ -124,31 +131,43 @@ export default function AdminDashboard() {
     };
   });
 
-  const exportCSV = () => {
-    const headers = ['Date', 'Name', 'Department', 'Role', 'Time In', 'Time Out', 'Total Hours', 'Status', 'Activities'];
-    const rows = logs.map(log => {
-      const user = users.find(u => u.uid === log.userId);
-      return [
-        log.date,
-        user?.name || 'Unknown',
-        user?.department || '',
-        user?.role || '',
-        log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
-        log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
-        log.totalHours || '',
-        log.status || '',
-        `"${(log.activities || '').replace(/"/g, '""')}"`
-      ].join(',');
-    });
-    
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `DTR_Report_${todayStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportCSV = async () => {
+    try {
+      setLoading(true);
+      const allLogsSnap = await getDocs(collection(db, 'dtr_logs'));
+      const allLogs: DTRLog[] = [];
+      allLogsSnap.forEach(doc => allLogs.push({ id: doc.id, ...doc.data() } as DTRLog));
+
+      const headers = ['Date', 'Name', 'Department', 'Role', 'Time In', 'Time Out', 'Total Hours', 'Status', 'Activities'];
+      const rows = allLogs.map(log => {
+        const user = users.find(u => u.uid === log.userId);
+        return [
+          log.date,
+          user?.name || 'Unknown',
+          user?.department || '',
+          user?.role || '',
+          log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
+          log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
+          log.totalHours || '',
+          log.status || '',
+          `"${(log.activities || '').replace(/"/g, '""')}"`
+        ].join(',');
+      });
+      
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `DTR_Report_${todayStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Failed to export logs:", error);
+      alert("Failed to export all DTR data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportInternMonthlyReport = () => {

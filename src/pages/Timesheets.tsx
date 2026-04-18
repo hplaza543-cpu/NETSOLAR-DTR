@@ -86,22 +86,22 @@ export default function Timesheets() {
     <Layout title="My Timesheets">
       <div className="space-y-6">
         
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Select Month</label>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Select Month</label>
               <input
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm font-medium"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
           </div>
           <button
             onClick={exportCSV}
             disabled={filteredLogs.length === 0}
-            className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium disabled:opacity-50"
+            className="flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
           >
             <Download className="w-4 h-4 mr-2" />
             Export CSV
@@ -109,24 +109,24 @@ export default function Timesheets() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Total Days Logged</p>
-            <p className="text-2xl font-bold text-gray-900">{filteredLogs.length}</p>
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Days Logged</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{filteredLogs.length}</p>
           </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Total Hours</p>
-            <p className="text-2xl font-bold text-gray-900">{totalHours.toFixed(2)}</p>
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Hours</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalHours.toFixed(2)}</p>
           </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-            <p className="text-sm font-medium text-gray-500">Late Days</p>
-            <p className="text-2xl font-bold text-red-600">{lateDays}</p>
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Late Days</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{lateDays}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+              <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Time In</th>
@@ -135,34 +135,34 @@ export default function Timesheets() {
                   <th className="px-6 py-3 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
                       No logs found for this month.
                     </td>
                   </tr>
                 ) : (
                   filteredLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                    <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                         {format(new Date(log.date), 'MMM d, yyyy')}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                         {log.timeIn ? format(new Date(log.timeIn), 'hh:mm a') : '-'}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                         {log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : '-'}
                       </td>
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                         {log.totalHours || '-'}
                       </td>
                       <td className="px-6 py-4">
                         {log.status === 'late' ? (
-                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">Late</span>
+                          <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 rounded text-xs font-medium">Late</span>
                         ) : (
-                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">On Time</span>
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded text-xs font-medium">On Time</span>
                         )}
                       </td>
                     </tr>

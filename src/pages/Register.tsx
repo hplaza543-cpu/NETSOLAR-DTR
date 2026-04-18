@@ -6,6 +6,7 @@ import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export default function Register() {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,14 +29,18 @@ export default function Register() {
 
   const saveProfile = async (user: any) => {
     const docRef = doc(db, 'users', user.uid);
+    const usernameLowerCase = username.toLowerCase().trim();
+    
     const userData: any = {
       uid: user.uid,
+      username: usernameLowerCase,
       name: user.displayName || name || 'Unknown User',
       email: user.email || email || '',
       role,
       department: department.trim(),
       photoURL: user.photoURL || '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      status: 'active'
     };
 
     if (role === 'intern') {
@@ -44,15 +49,38 @@ export default function Register() {
     }
 
     try {
+      // First save the profile
       await setDoc(docRef, userData);
+      // Then save the username mapping for easy signin lookup
+      await setDoc(doc(db, 'usernames', usernameLowerCase), { 
+        uid: user.uid, 
+        email: user.email || email || ''
+      });
       navigate('/');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
     }
   };
 
+  const validateUsername = async (uName: string) => {
+    if (!uName || uName.length < 3 || uName.length > 30) {
+      throw new Error("Username must be between 3 and 30 characters.");
+    }
+    if (!/^[a-z0-9_]+$/.test(uName)) {
+      throw new Error("Username can only contain lowercase letters, numbers, and underscores.");
+    }
+    const snap = await getDoc(doc(db, 'usernames', uName));
+    if (snap.exists()) {
+      throw new Error("Username is already taken. Please choose another.");
+    }
+  };
+
   const handleEmailRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim()) {
+      setError('Please provide a username');
+      return;
+    }
     if (!department.trim()) {
       setError('Please select a department');
       return;
@@ -64,6 +92,9 @@ export default function Register() {
     try {
       setError('');
       setLoading(true);
+      
+      const usernameValue = username.toLowerCase().trim();
+      await validateUsername(usernameValue);
       
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name });
@@ -112,6 +143,12 @@ export default function Register() {
         setLoading(false);
         return;
       }
+      
+      if (!username.trim()) {
+        setError('Please provide a unique username');
+        setLoading(false);
+        return;
+      }
 
       if (!department.trim()) {
         setError('Please select a department');
@@ -124,6 +161,9 @@ export default function Register() {
         setLoading(false);
         return;
       }
+
+      const usernameValue = username.toLowerCase().trim();
+      await validateUsername(usernameValue);
 
       await saveProfile(user);
     } catch (err: any) {
@@ -166,6 +206,17 @@ export default function Register() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder="e.g. john_doe123"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white lowercase"
                   />
                 </div>
                 <div>
@@ -264,6 +315,17 @@ export default function Register() {
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Your full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Choose Username</label>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white lowercase"
+                  placeholder="e.g. jdoe_99"
                 />
               </div>
               <div>

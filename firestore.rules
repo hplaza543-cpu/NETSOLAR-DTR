@@ -82,13 +82,13 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
         (request.auth.token.email == "HPlaza543@gmail.com" && request.auth.token.email_verified == true)
       );
     }
 
     function isAccounting() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'accounting';
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'accounting';
     }
 
     function hasRequiredFields(fields) {
@@ -111,8 +111,9 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'name', 'email', 'role', 'department', 'photoURL', 'createdAt', 'targetHours', 'startDate', 'dailyAllowance', 'salary']) &&
+      return hasOnlyAllowedFields(['uid', 'username', 'name', 'email', 'role', 'department', 'photoURL', 'createdAt', 'targetHours', 'startDate', 'dailyAllowance', 'salary', 'status']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             (!('username' in data) || (data.username is string && data.username.size() >= 3 && data.username.size() <= 30 && data.username.matches("^[a-z0-9_]+$"))) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
              data.role in ['admin', 'employee', 'intern', 'accounting'] &&
@@ -122,6 +123,7 @@ service cloud.firestore {
              (!('startDate' in data) || (data.startDate is string && data.startDate.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('dailyAllowance' in data) || (data.dailyAllowance is number && data.dailyAllowance >= 0)) &&
              (!('salary' in data) || (data.salary is number && data.salary >= 0)) &&
+             (!('status' in data) || data.status in ['active', 'archived']) &&
              isValidDateString(data.createdAt);
     }
 
@@ -197,6 +199,15 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidAuditLog(request.resource.data);
       // Audit logs are immutable
       allow update, delete: if false;
+    }
+
+    match /usernames/{usernameId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                    request.resource.data.keys().hasOnly(['uid', 'email']) &&
+                    request.resource.data.uid == request.auth.uid &&
+                    request.resource.data.email is string;
+      allow update, delete: if isOwner(resource.data.uid) || isAdmin();
     }
 
     match /users/{userId} {

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 interface UserProfile {
   uid: string;
   name: string;
+  username?: string;
   email: string;
   role: 'admin' | 'employee' | 'intern' | 'accounting';
   department?: string;
@@ -47,28 +48,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeProfile: (() => void) | undefined;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        try {
-          const docRef = doc(db, 'users', firebaseUser.uid);
-          const docSnap = await getDoc(docRef);
+        const docRef = doc(db, 'users', firebaseUser.uid);
+        unsubscribeProfile = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
           } else {
             setProfile(null);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setProfile(null);
-        }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error fetching user profile stream:", error);
+          if (error.message.includes('offline')) {
+             // If client is offline, don't crash the UI or set profile to null, just wait.
+             // Rely on cache if available.
+             setLoading(false);
+          } else {
+             setProfile(null);
+             setLoading(false);
+          }
+        });
       } else {
         setProfile(null);
+        setLoading(false);
+        if (unsubscribeProfile) unsubscribeProfile();
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   return (

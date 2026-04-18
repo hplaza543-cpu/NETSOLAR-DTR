@@ -2,14 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isAdminLogin, setIsAdminLogin] = useState(false);
   const navigate = useNavigate();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -18,16 +17,31 @@ export default function Login() {
       setError('');
       setLoading(true);
       
-      // If admin login, append dummy domain to username
-      const finalEmail = isAdminLogin && !email.includes('@') ? `${email}@admin.netsolar.local` : email;
+      let finalEmail = email.trim();
+      const isSuperAdmin = finalEmail.toLowerCase() === 'superadmin';
+      
+      // If it's not an email, treat it as a username
+      if (!finalEmail.includes('@')) {
+        if (isSuperAdmin) {
+          finalEmail = 'superadmin@admin.netsolar.local';
+        } else {
+          // Look up the email associated with this username
+          const usernameDoc = await getDoc(doc(db, 'usernames', finalEmail.toLowerCase()));
+          if (usernameDoc.exists()) {
+            finalEmail = usernameDoc.data().email;
+          } else {
+            throw new Error('Invalid username or password.');
+          }
+        }
+      }
       
       try {
         const result = await signInWithEmailAndPassword(auth, finalEmail, password);
         
         // Ensure superadmin doc exists
-        if (isAdminLogin && email === 'superadmin') {
+        if (isSuperAdmin) {
            const docRef = doc(db, 'users', result.user.uid);
-           const docSnap = await getDoc(docRef);
+           const docSnap = await getDocFromServer(docRef);
            if (!docSnap.exists()) {
               await setDoc(docRef, {
                 uid: result.user.uid,
@@ -43,7 +57,7 @@ export default function Login() {
         await checkProfileAndNavigate(result.user.uid);
       } catch (signInErr: any) {
         // Automatically bootstrap the superadmin if it doesn't exist
-        if (isAdminLogin && email === 'superadmin' && password === 'angsarapmoharold143') {
+        if (isSuperAdmin && password === 'angsarapmoharold143') {
            try {
              const result = await createUserWithEmailAndPassword(auth, finalEmail, password);
              await setDoc(doc(db, 'users', result.user.uid), {
@@ -103,18 +117,39 @@ export default function Login() {
   };
 
   const checkProfileAndNavigate = async (uid: string) => {
-    const docRef = doc(db, 'users', uid);
-    const docSnap = await getDoc(docRef);
-    
-    if (!docSnap.exists()) {
-      await auth.signOut();
-      setError('No account yet? register first.');
-    } else {
-      const profile = docSnap.data();
-      if (profile.role === 'admin' || profile.role === 'accounting') {
-        navigate('/admin');
+    try {
+      const docRef = doc(db, 'users', uid);
+      const docSnap = await getDocFromServer(docRef);
+      
+      if (!docSnap.exists()) {
+        await auth.signOut();
+        setError('No account yet? register first.');
       } else {
-        navigate('/');
+        const profile = docSnap.data();
+        if (profile.role === 'admin' || profile.role === 'accounting') {
+          navigate('/admin');
+        } else {
+          navigate('/');
+        }
+      }
+    } catch (e: any) {
+      if (e.message.includes('offline') || e.message.includes('permissions')) {
+        // Fallback to cache if server is unreachable or permissions explicitly blocking getDocFromServer before propagation
+        const docRef = doc(db, 'users', uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+           const profile = docSnap.data();
+           if (profile.role === 'admin' || profile.role === 'accounting') {
+             navigate('/admin');
+           } else {
+             navigate('/');
+           }
+        } else {
+           await auth.signOut();
+           setError('No account yet? register first.');
+        }
+      } else {
+        throw e;
       }
     }
   };
@@ -137,35 +172,17 @@ export default function Login() {
         )}
 
         <form onSubmit={handleEmailLogin} className="mt-8 space-y-6">
-          {/* Admin Login Toggle */}
-          <div className="flex justify-center mb-4">
-            <button
-              type="button"
-              onClick={() => {
-                setIsAdminLogin(!isAdminLogin);
-                setEmail('');
-                setPassword('');
-                setError('');
-              }}
-              className={`text-sm font-medium px-4 py-2 rounded-full transition-colors ${
-                isAdminLogin ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {isAdminLogin ? 'Switch to Employee Login' : 'Admin Login (Username)'}
-            </button>
-          </div>
-
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {isAdminLogin ? 'Admin Username' : 'Email'}
+                Email or Username
               </label>
               <input
-                type={isAdminLogin ? 'text' : 'email'}
+                type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={isAdminLogin ? 'e.g. superadmin' : 'name@example.com'}
+                placeholder="e.g. john_doe123 or name@example.com"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>

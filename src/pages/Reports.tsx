@@ -34,26 +34,57 @@ export default function Reports() {
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   
   useEffect(() => {
-    fetchData();
+    fetchUsers();
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    fetchLogs();
+  }, [selectedDate, selectedUserId]);
+
+  const fetchUsers = async () => {
     try {
-      setLoading(true);
-      // Fetch users
       const usersQuery = query(collection(db, 'users'), where('role', 'in', ['employee', 'intern']));
       const usersSnapshot = await getDocs(usersQuery);
       const fetchedUsers = usersSnapshot.docs
         .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
         .filter(user => user.status !== 'archived');
       setUsers(fetchedUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
 
-      // Fetch all logs
-      // Note: In production with many logs, it's better to fetch by date range, but here we can fetch all or just for the month.
-      // To improve performance, we just fetch logs without filter and match them locally for this preview.
-      const logsQuery = query(collection(db, 'dtr_logs'));
-      const logsSnapshot = await getDocs(logsQuery);
-      const fetchedLogs = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DTRLog));
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      
+      let baseQuery;
+      
+      if (selectedDate) {
+        baseQuery = query(
+          collection(db, 'dtr_logs'), 
+          where('date', '==', selectedDate)
+        );
+      } else if (selectedUserId) {
+        baseQuery = query(
+          collection(db, 'dtr_logs'), 
+          where('userId', '==', selectedUserId)
+        );
+      } else {
+        // Fallback, fetch limited recent logs to prevent overwhelming
+        baseQuery = query(
+          collection(db, 'dtr_logs')
+        );
+      }
+
+      const logsSnapshot = await getDocs(baseQuery);
+      let fetchedLogs = logsSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) } as DTRLog));
+      
+      // Memory filter for the remaining conditions to avoid composite index errors
+      if (selectedDate && selectedUserId) {
+         fetchedLogs = fetchedLogs.filter(log => log.userId === selectedUserId);
+      }
+
       setLogs(fetchedLogs);
     } catch (error) {
       console.error("Error fetching generic reports data:", error);
@@ -62,11 +93,7 @@ export default function Reports() {
     }
   };
 
-  const filteredLogs = logs.filter(log => {
-    if (selectedDate && log.date !== selectedDate) return false;
-    if (selectedUserId && log.userId !== selectedUserId) return false;
-    return true;
-  }).sort((a, b) => new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime());
+  const filteredLogs = logs.sort((a, b) => new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime());
 
   return (
     <Layout title="Activity Reports">
