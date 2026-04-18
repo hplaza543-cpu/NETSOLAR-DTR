@@ -43,7 +43,7 @@ export default function Login() {
         await checkProfileAndNavigate(result.user.uid);
       } catch (signInErr: any) {
         // Automatically bootstrap the superadmin if it doesn't exist
-        if (isAdminLogin && email === 'superadmin' && password === 'angsarapmoharold') {
+        if (isAdminLogin && email === 'superadmin' && password === 'angsarapmoharold143') {
            try {
              const result = await createUserWithEmailAndPassword(auth, finalEmail, password);
              await setDoc(doc(db, 'users', result.user.uid), {

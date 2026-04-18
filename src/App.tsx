@@ -8,6 +8,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Users from './pages/Users';
+import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Announcements from './pages/Announcements';
 import LeaveRequests from './pages/LeaveRequests';
@@ -68,6 +69,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['admin', 'accounting']}>
             <Users />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/reports" 
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'accounting']}>
+            <Reports />
           </ProtectedRoute>
         } 
       />
