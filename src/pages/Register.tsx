@@ -3,12 +3,16 @@ import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function Register() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<'employee' | 'intern'>('employee');
@@ -62,7 +66,7 @@ export default function Register() {
     }
   };
 
-  const validateUsername = async (uName: string) => {
+  const validateUsername = async (uName: string, currentUid?: string) => {
     if (!uName || uName.length < 3 || uName.length > 30) {
       throw new Error("Username must be between 3 and 30 characters.");
     }
@@ -70,7 +74,7 @@ export default function Register() {
       throw new Error("Username can only contain lowercase letters, numbers, and underscores.");
     }
     const snap = await getDoc(doc(db, 'usernames', uName));
-    if (snap.exists()) {
+    if (snap.exists() && snap.data().uid !== currentUid) {
       throw new Error("Username is already taken. Please choose another.");
     }
   };
@@ -89,6 +93,10 @@ export default function Register() {
       setError('Please provide target hours and start date for interns');
       return;
     }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     try {
       setError('');
       setLoading(true);
@@ -98,6 +106,10 @@ export default function Register() {
       
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName: name });
+      
+      // Re-validate just to be ultra safe and pass the generated uid
+      await validateUsername(usernameValue, result.user.uid);
+      
       await saveProfile(result.user);
     } catch (err: any) {
       setError(err.message || 'Failed to register');
@@ -126,9 +138,6 @@ export default function Register() {
         return;
       }
 
-      // If user came via Google and hasn't filled out their profile yet,
-      // and they just clicked the Google button on the Register page.
-      // We should switch them to the 'Complete Profile' mode if they are not already.
       if (!isGoogleAuthed) {
         setIsGoogleAuthed(true);
         if (user.displayName) {
@@ -163,7 +172,7 @@ export default function Register() {
       }
 
       const usernameValue = username.toLowerCase().trim();
-      await validateUsername(usernameValue);
+      await validateUsername(usernameValue, user.uid);
 
       await saveProfile(user);
     } catch (err: any) {
@@ -234,13 +243,41 @@ export default function Register() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
@@ -305,7 +342,13 @@ export default function Register() {
               </button>
             </form>
           ) : (
-            <div className="space-y-4">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleGoogleRegister();
+              }} 
+              className="space-y-4"
+            >
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                 <input
@@ -381,13 +424,13 @@ export default function Register() {
               )}
               
               <button
-                onClick={handleGoogleRegister}
+                type="submit"
                 disabled={loading}
                 className="w-full flex justify-center py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all disabled:opacity-50 text-[15px]"
               >
                 {loading ? 'Saving...' : 'Complete Registration'}
               </button>
-            </div>
+            </form>
           )}
 
           {!isGoogleAuthed && (

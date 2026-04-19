@@ -40,6 +40,10 @@ export default function Announcements() {
       const data: Announcement[] = [];
       snap.forEach(doc => data.push({ id: doc.id, ...doc.data() } as Announcement));
       setAnnouncements(data);
+
+      if (data.length > 0 && profile) {
+        localStorage.setItem(`lastViewedAnnouncements_${profile.uid}`, new Date().toISOString());
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, 'announcements');
     } finally {

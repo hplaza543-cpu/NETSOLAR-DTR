@@ -3,10 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,21 +19,27 @@ export default function Login() {
       setError('');
       setLoading(true);
       
-      let finalEmail = email.trim();
-      const isSuperAdmin = finalEmail.toLowerCase() === 'superadmin';
+      let inputVal = usernameInput.trim();
+      if (!inputVal) {
+        throw new Error('Please enter your username.');
+      }
+
+      if (inputVal.includes('@')) {
+        throw new Error('Please log in using your username instead of your email address.');
+      }
+
+      const isSuperAdmin = inputVal.toLowerCase() === 'superadmin';
+      let finalEmail = inputVal;
       
-      // If it's not an email, treat it as a username
-      if (!finalEmail.includes('@')) {
-        if (isSuperAdmin) {
-          finalEmail = 'superadmin@admin.netsolar.local';
+      if (isSuperAdmin) {
+        finalEmail = 'superadmin@admin.netsolar.local';
+      } else {
+        // Look up the email associated with this username
+        const usernameDoc = await getDoc(doc(db, 'usernames', inputVal.toLowerCase()));
+        if (usernameDoc.exists()) {
+          finalEmail = usernameDoc.data().email;
         } else {
-          // Look up the email associated with this username
-          const usernameDoc = await getDoc(doc(db, 'usernames', finalEmail.toLowerCase()));
-          if (usernameDoc.exists()) {
-            finalEmail = usernameDoc.data().email;
-          } else {
-            throw new Error('Invalid username or password.');
-          }
+          throw new Error('Invalid username or password.');
         }
       }
       
@@ -175,14 +183,14 @@ export default function Login() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email or Username
+                Username
               </label>
               <input
                 type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. john_doe123 or name@example.com"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                placeholder="e.g. jdoe_99"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
@@ -193,13 +201,22 @@ export default function Login() {
                   Forgot password?
                 </Link>
               </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
           </div>
 

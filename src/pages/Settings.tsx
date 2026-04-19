@@ -139,13 +139,17 @@ export default function Settings() {
             <select
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              disabled={profile?.role !== 'admin'}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">Select Department</option>
               {DEPARTMENTS.map(d => (
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
+            {profile?.role !== 'admin' && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-500 font-medium">To change your department, please contact your administrator.</p>
+            )}
           </div>
 
           <button

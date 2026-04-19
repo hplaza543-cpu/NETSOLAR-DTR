@@ -4,7 +4,7 @@ import { collection, query, getDocs, doc, updateDoc, where } from 'firebase/fire
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, ArrowLeft, Search, FileText, ChevronUp, ChevronDown } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday, addDays, isWeekend } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
 
@@ -42,10 +42,11 @@ export default function Users() {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editAllowance, setEditAllowance] = useState<number | ''>('');
+  const [editTargetHours, setEditTargetHours] = useState<number | ''>('');
   const [editSalary, setEditSalary] = useState<number | ''>('');
   const [activeTab, setActiveTab] = useState<'employee' | 'intern'>('intern');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<'name' | 'role' | 'department'>('name');
+  const [sortField, setSortField] = useState<'name' | 'department'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   // Calculate default cut-off: Previous/Current Thursday to next Wednesday
   const getCutOffDates = () => {
@@ -144,11 +145,12 @@ export default function Users() {
   const handleUserClick = (user: UserProfile) => {
     setSelectedUser(user);
     setEditAllowance(user.dailyAllowance || '');
+    setEditTargetHours(user.targetHours || '');
     setEditSalary(user.salary || '');
     setIsEditing(false);
   };
 
-  const handleSort = (field: 'name' | 'role' | 'department') => {
+  const handleSort = (field: 'name' | 'department') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -165,8 +167,10 @@ export default function Users() {
       let details = '';
       if (selectedUser.role === 'intern') {
         const newAllowance = Number(editAllowance) || 0;
+        const newTargetHours = Number(editTargetHours) || 0;
         updates.dailyAllowance = newAllowance;
-        details = `Updated daily allowance for ${selectedUser.name} to PHP ${newAllowance}`;
+        updates.targetHours = newTargetHours;
+        details = `Updated settings for ${selectedUser.name}: Allowance PHP ${newAllowance}, Target Hours ${newTargetHours}`;
       } else if (selectedUser.role === 'employee') {
         const newSalary = Number(editSalary) || 0;
         updates.salary = newSalary;
@@ -214,13 +218,37 @@ export default function Users() {
     const allTimeTotalHours = userLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
     const overallPercentage = targetHours > 0 ? Math.min(100, Math.round((allTimeTotalHours / targetHours) * 100)) : 0;
     
-    // Cut-off period progress
-    if (cutOffStart && cutOffEnd) {
-      userLogs = userLogs.filter(log => log.date >= cutOffStart && log.date <= cutOffEnd && log.status !== 'absent');
+    // Expected finish date
+    let expectedFinishDate = null;
+    if (targetHours > 0) {
+      const remaining = targetHours - allTimeTotalHours;
+      if (remaining <= 0) {
+        // Find last log date if exist
+        userLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        expectedFinishDate = userLogs.length > 0 ? new Date(userLogs[0].date) : new Date();
+      } else {
+        let daysToAdd = Math.ceil(remaining / 8);
+        let dateCursor = new Date();
+        while (daysToAdd > 0) {
+          dateCursor = addDays(dateCursor, 1);
+          if (!isWeekend(dateCursor)) {
+            daysToAdd--;
+          }
+        }
+        expectedFinishDate = dateCursor;
+      }
     }
-    const cutOffTotalHours = userLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
 
-    return { allTimeTotalHours, overallPercentage, cutOffTotalHours };
+    // Cut-off period progress
+    let cutOffLogs = userLogs;
+    if (cutOffStart && cutOffEnd) {
+      cutOffLogs = userLogs.filter(log => log.date >= cutOffStart && log.date <= cutOffEnd && log.status !== 'absent');
+    }
+    const cutOffTotalHours = cutOffLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
+
+    const uniqueDays = new Set(userLogs.map(l => l.date)).size;
+
+    return { allTimeTotalHours, overallPercentage, cutOffTotalHours, expectedFinishDate, uniqueDays };
   };
 
   const calculateEmployeeProgress = (userId: string) => {
@@ -267,17 +295,15 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => navigate('/admin')}
-            className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors cursor-pointer"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-          </button>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">User Management & Progress</h2>
-        </div>
+      <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <button
+          onClick={() => navigate('/admin')}
+          className="flex items-center justify-center w-10 h-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-gray-500 hover:text-amber-600 dark:text-gray-400 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:border-amber-200 dark:hover:border-amber-500/30 transition-all cursor-pointer flex-shrink-0"
+          title="Back to Dashboard"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">User Management & Progress</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -316,12 +342,6 @@ export default function Users() {
                 className={`flex items-center text-xs px-2 py-1 rounded-md transition-colors ${sortField === 'name' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'}`}
               >
                 Name {sortField === 'name' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />)}
-              </button>
-              <button
-                onClick={() => handleSort('role')}
-                className={`flex items-center text-xs px-2 py-1 rounded-md transition-colors ${sortField === 'role' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' : 'text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'}`}
-              >
-                Role {sortField === 'role' && (sortDirection === 'asc' ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />)}
               </button>
               <button
                 onClick={() => handleSort('department')}
@@ -448,18 +468,30 @@ export default function Users() {
                               <span className="font-bold text-amber-600 dark:text-amber-400 text-xl">{progress.cutOffTotalHours.toFixed(1)} <span className="text-sm font-medium">hrs</span></span>
                             </div>
                             
-                            <div className="pt-3">
-                              <div className="flex justify-between text-xs mb-1.5">
-                                <span className="text-gray-500 dark:text-gray-400">Total Overall Progress</span>
-                                <span className="font-medium text-gray-700 dark:text-gray-300">{progress.allTimeTotalHours.toFixed(1)} / {selectedUser.targetHours} hrs</span>
+                            <div className="pt-4 mt-2 border-t border-gray-200 dark:border-gray-600">
+                              <div className="flex justify-between items-end mb-2">
+                                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Overall Progress</span>
+                                <span className="font-bold text-gray-900 dark:text-white text-lg">
+                                  {progress.allTimeTotalHours.toFixed(1)} <span className="text-sm font-medium text-gray-500 dark:text-gray-400">/ {selectedUser.targetHours} hrs</span>
+                                </span>
                               </div>
-                              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden shadow-inner">
                                 <div 
-                                  className="bg-gray-400 dark:bg-gray-400 h-2 rounded-full transition-all duration-500" 
+                                  className="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r from-amber-400 to-amber-500 relative" 
                                   style={{ width: `${progress.overallPercentage}%` }}
-                                ></div>
+                                >
+                                  <div className="absolute top-0 bottom-0 left-0 right-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+                                </div>
                               </div>
-                              <p className="text-xs text-gray-400 dark:text-gray-500 text-right mt-1.5">{progress.overallPercentage}% Complete</p>
+                              <div className="flex justify-between items-center mt-2 text-xs">
+                                <span className="font-semibold text-amber-600 dark:text-amber-400">{progress.overallPercentage}% Complete</span>
+                                <span className="text-gray-500 dark:text-gray-400 text-right">
+                                  Est. Finish: <span className="font-medium text-gray-700 dark:text-gray-300">{progress.expectedFinishDate ? format(progress.expectedFinishDate, 'MMM d, yyyy') : 'N/A'}</span>
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 text-right">
+                                Started: {selectedUser.startDate ? format(new Date(selectedUser.startDate), 'MMM d, yyyy') : 'N/A'}
+                              </div>
                             </div>
                           </>
                         );
@@ -517,21 +549,39 @@ export default function Users() {
 
                   {selectedUser.role === 'intern' ? (
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Daily Allowance (PHP)</label>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            value={editAllowance}
-                            onChange={(e) => setEditAllowance(e.target.value ? Number(e.target.value) : '')}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                            placeholder="e.g. 300"
-                          />
-                        ) : (
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                            ₱{selectedUser.dailyAllowance?.toLocaleString() || '0'} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">/ day</span>
-                          </p>
-                        )}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Target Hours</label>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              value={editTargetHours}
+                              onChange={(e) => setEditTargetHours(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              placeholder="e.g. 500"
+                            />
+                          ) : (
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {selectedUser.targetHours || '0'} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">hrs</span>
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Daily Allowance (PHP)</label>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              value={editAllowance}
+                              onChange={(e) => setEditAllowance(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              placeholder="e.g. 300"
+                            />
+                          ) : (
+                            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                              ₱{selectedUser.dailyAllowance?.toLocaleString() || '0'} <span className="text-sm font-normal text-gray-500 dark:text-gray-400">/ day</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-600">

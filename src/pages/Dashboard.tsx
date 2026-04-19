@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, orderBy } from 'firebase/firestore';
-import { format, isThursday, isWednesday, nextWednesday, previousThursday } from 'date-fns';
+import { format, isThursday, isWednesday, nextWednesday, previousThursday, subDays, addDays, isWeekend } from 'date-fns';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
-import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle2, AlertCircle, BarChart as BarChartIcon } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface DTRLog {
   id: string;
@@ -228,8 +229,52 @@ export default function Dashboard() {
     };
   };
 
+  const getAttendanceChartData = () => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = subDays(new Date(), 6 - i);
+      const dStr = format(d, 'yyyy-MM-dd');
+      const dayLogs = recentLogs.filter(l => l.date === dStr);
+      return {
+        name: format(d, 'EEE'),
+        fullDate: format(d, 'MMM dd, yyyy'),
+        onTime: dayLogs.filter(l => l.status !== 'late').length,
+        late: dayLogs.filter(l => l.status === 'late').length,
+      };
+    });
+  };
+
   const effectiveDate = selectedDate || todayStr;
   const displayedLogs = recentLogs.filter(log => log.date === effectiveDate);
+
+  // Intern Additional Calculations
+  let expectedFinishDate = null;
+  let totalAllowance = 0;
+  const dailyRate = profile?.dailyAllowance || 150;
+  
+  if (profile?.role === 'intern' && profile.targetHours) {
+    const uniqueDays = new Set(recentLogs.map(l => l.date)).size;
+    totalAllowance = uniqueDays * dailyRate;
+    
+    const totalDone = cumulativeHours + activeSessionHours;
+    const remaining = profile.targetHours - totalDone;
+    
+    if (remaining <= 0) {
+      // Completed, get the last log date or today
+      expectedFinishDate = recentLogs.length > 0 ? new Date(recentLogs[0].date) : new Date();
+    } else {
+      let daysToAdd = Math.ceil(remaining / 8);
+      let dateCursor = new Date();
+      
+      // If we assumed they work exactly 8 hours remaining per day
+      while (daysToAdd > 0) {
+        dateCursor = addDays(dateCursor, 1);
+        if (!isWeekend(dateCursor)) {
+          daysToAdd--;
+        }
+      }
+      expectedFinishDate = dateCursor;
+    }
+  }
 
   if (loading) {
     return (
@@ -261,11 +306,30 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 mt-3 overflow-hidden">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mt-4 overflow-hidden shadow-inner">
                 <div 
-                  className="bg-amber-500 h-2.5 rounded-full transition-all duration-500" 
+                  className="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r from-amber-400 to-amber-500 relative" 
                   style={{ width: `${Math.min(100, ((cumulativeHours + activeSessionHours) / profile.targetHours) * 100)}%` }}
-                ></div>
+                >
+                  <div className="absolute top-0 bottom-0 left-0 right-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5 border-t border-gray-100 dark:border-gray-700/60">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-1">Total Days</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{new Set(recentLogs.map(l => l.date)).size} days present</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-1">Est. Completion</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {expectedFinishDate ? format(expectedFinishDate, 'MMM dd, yyyy') : 'N/A'}
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-1">Accumulated Allowance</p>
+                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">₱{totalAllowance.toLocaleString()} <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(@ ₱{dailyRate}/day)</span></p>
+                </div>
               </div>
             </>
           ) : (
@@ -495,6 +559,36 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {/* Attendance Overview */}
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
+          <BarChartIcon className="w-5 h-5 mr-2 text-amber-500" />
+          Attendance Overview (Last 7 Days)
+        </h2>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={getAttendanceChartData()} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" className="dark:stroke-gray-700" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} width={40} allowDecimals={false} />
+              <Tooltip 
+                cursor={{ fill: 'rgba(245, 158, 11, 0.05)' }}
+                contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-bg-opacity, white)' }}
+                labelFormatter={(label, payload) => {
+                  if (payload && payload.length > 0) {
+                    return <span className="font-semibold text-gray-900 dark:text-gray-100">{payload[0].payload.fullDate}</span>;
+                  }
+                  return label;
+                }}
+              />
+              <Bar dataKey="onTime" name="On Time" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="late" name="Late" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
     </Layout>
   );
 }
