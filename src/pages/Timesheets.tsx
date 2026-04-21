@@ -94,17 +94,18 @@ export default function Timesheets() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-semibold bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white cursor-pointer select-none outline-none hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md active:scale-[0.97] transition-all duration-300 ease-out"
               />
             </div>
           </div>
           <button
             onClick={exportCSV}
             disabled={filteredLogs.length === 0}
-            className="flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
+            className="group relative overflow-hidden flex items-center px-5 py-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded-xl shadow-sm transition-all duration-300 ease-out text-sm font-semibold disabled:opacity-50 active:scale-[0.95]"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            <span className="absolute inset-0 w-full h-full bg-amber-500 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
+            <Download className="w-4 h-4 mr-2 relative z-10" />
+            <span className="relative z-10">Export CSV</span>
           </button>
         </div>
 

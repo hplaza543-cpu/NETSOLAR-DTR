@@ -107,11 +107,11 @@ export default function Layout({ children, title }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex text-gray-900 dark:text-gray-100 font-sans">
-      {/* Sidebar - Collapsed by default, expands on hover */}
-      <aside className="fixed inset-y-0 left-0 z-50 w-[80px] hover:w-[240px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col hidden md:flex transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group overflow-hidden">
+      {/* Desktop Sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-50 w-[80px] hover:w-[240px] bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-[4px_0_24px_-10px_rgba(0,0,0,0.05)] dark:shadow-[4px_0_24px_-10px_rgba(0,0,0,0.3)] flex flex-col hidden md:flex transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] group overflow-hidden">
         {/* Inner rigid container to prevent text wrapping during transition */}
         <div className="w-[240px] flex flex-col h-full"> 
-          <div className="h-[80px] flex items-center px-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="h-[80px] flex items-center px-6 flex-shrink-0">
             <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white flex-shrink-0">
               <span className="font-bold text-lg">N</span>
             </div>
@@ -153,8 +153,8 @@ export default function Layout({ children, title }: LayoutProps) {
             </div>
           </div>
 
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50 mt-auto">
-            <div className="flex items-center justify-between p-1.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors">
+          <div className="p-3 bg-black/5 dark:bg-white/5 mt-auto">
+            <div className="flex items-center justify-between p-1.5 rounded-xl hover:bg-white/50 dark:hover:bg-white/10 transition-colors">
               <div 
                 className="flex items-center cursor-pointer py-1 px-1.5 rounded-lg flex-1 overflow-hidden"
                 onClick={() => navigate('/settings')}
@@ -192,7 +192,7 @@ export default function Layout({ children, title }: LayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 md:pl-[80px]">
-        <header className="sticky top-0 z-40 h-[80px] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sm:px-10">
+        <header className="sticky top-0 z-40 h-[80px] bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl shadow-[0_4px_24px_-10px_rgba(0,0,0,0.05)] dark:shadow-[0_4px_24px_-10px_rgba(0,0,0,0.4)] flex items-center justify-between px-6 sm:px-10">
           <div className="flex items-center">
             {/* Mobile Logo */}
             <div className="md:hidden w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white mr-3">
@@ -307,7 +307,7 @@ export default function Layout({ children, title }: LayoutProps) {
         </div>
         
         {/* Mobile Bottom Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-50 pb-[env(safe-area-inset-bottom)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-[0_-4px_24px_-10px_rgba(0,0,0,0.1)] z-50 pb-[env(safe-area-inset-bottom)]">
           <div className="flex justify-around items-center h-16">
             {mobileNavItems.map((item) => {
               const Icon = item.icon;

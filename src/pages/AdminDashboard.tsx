@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { format, subDays, isSameDay } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Bell, Users, Clock, AlertTriangle, Download, AlertCircle, Info } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface UserProfile {
   uid: string;
@@ -282,11 +283,23 @@ export default function AdminDashboard() {
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
                   <Tooltip 
                     cursor={{ fill: 'rgba(156, 163, 175, 0.1)' }}
+                    position={{ y: -10 }}
+                    wrapperStyle={{ outline: 'none', transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
-                            <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.75, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            transition={{ 
+                              type: 'spring', 
+                              stiffness: 250, 
+                              damping: 25,
+                              mass: 1.2
+                            }}
+                            className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] min-w-[200px]"
+                          >
+                            <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-2 mb-2">
                               {payload[0].payload.fullDate || label}
                             </p>
                             {payload.map((entry: any, index: number) => (
@@ -296,7 +309,7 @@ export default function AdminDashboard() {
                                 <span className="font-medium text-gray-900 dark:text-white">{entry.value}</span>
                               </div>
                             ))}
-                          </div>
+                          </motion.div>
                         );
                       }
                       return null;
@@ -370,17 +383,19 @@ export default function AdminDashboard() {
             <div className="space-y-3">
               <button 
                 onClick={exportCSV}
-                className="w-full flex items-center justify-center py-2.5 px-4 bg-white/10 hover:bg-white/20 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold rounded-full transition-colors text-[12px]"
+                className="group relative overflow-hidden w-full flex items-center justify-center py-2.5 px-4 bg-white/10 dark:bg-gray-700 text-white font-semibold rounded-full shadow-sm transition-all duration-300 ease-out text-[12px] active:scale-[0.95]"
               >
-                <Download className="w-4 h-4 mr-2" />
-                ALL DTR (CSV)
+                <span className="absolute inset-0 w-full h-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
+                <Download className="w-4 h-4 mr-2 relative z-10" />
+                <span className="relative z-10">ALL DTR (CSV)</span>
               </button>
               <button 
                 onClick={exportInternMonthlyReport}
-                className="w-full flex items-center justify-center py-2.5 px-4 bg-amber-500/20 hover:bg-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-400 font-semibold rounded-full transition-colors text-[12px]"
+                className="group relative overflow-hidden w-full flex items-center justify-center py-2.5 px-4 bg-amber-500/20 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 font-semibold rounded-full shadow-sm transition-all duration-300 ease-out text-[12px] active:scale-[0.95]"
               >
-                <Download className="w-4 h-4 mr-2" />
-                INTERN MONTHLY (CSV)
+                <span className="absolute inset-0 w-full h-full bg-amber-500/30 dark:bg-amber-500/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
+                <Download className="w-4 h-4 mr-2 relative z-10" />
+                <span className="relative z-10">INTERN MONTHLY (CSV)</span>
               </button>
             </div>
           </div>

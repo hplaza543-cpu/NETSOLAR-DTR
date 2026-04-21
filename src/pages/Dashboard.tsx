@@ -157,6 +157,15 @@ export default function Dashboard() {
   };
 
   const handleTimeIn = async () => {
+    // Request permission on a direct user gesture (button click)
+    if ('Notification' in window && Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch (e) {
+        console.error("Could not request notification permissions:", e);
+      }
+    }
+
     if (!user) return;
     try {
       setActionLoading(true);
@@ -353,16 +362,85 @@ export default function Dashboard() {
     };
   };
 
+  const getAllowanceHistory = () => {
+    if (!profile || profile.role !== 'intern' || !profile.dailyAllowance) return [];
+    
+    const presentDates = Array.from(new Set(recentLogs.filter(l => l.status !== 'absent').map(l => l.date))).sort();
+    if (presentDates.length === 0) return [];
+
+    const periods: Map<string, { startStr: string, endStr: string, days: number, total: number }> = new Map();
+    const currentAllowance = calculateCurrentAllowance();
+
+    presentDates.forEach(dateStr => {
+      const localDate = new Date(dateStr + 'T12:00:00');
+      let start, end;
+      
+      if (isThursday(localDate)) {
+        start = localDate;
+        end = nextWednesday(localDate);
+      } else if (isWednesday(localDate)) {
+        start = previousThursday(localDate);
+        end = localDate;
+      } else {
+        start = previousThursday(localDate);
+        end = nextWednesday(localDate);
+      }
+      
+      const pStart = format(start, 'yyyy-MM-dd');
+      const pEnd = format(end, 'yyyy-MM-dd');
+      const key = `${pStart}_${pEnd}`;
+      
+      // Skip the current allowance period from the history as it's displayed separately
+      if (currentAllowance && key === `${currentAllowance.startStr}_${currentAllowance.endStr}`) {
+         return;
+      }
+
+      if (periods.has(key)) {
+        const period = periods.get(key)!;
+        period.days += 1;
+        period.total += profile.dailyAllowance!;
+      } else {
+        periods.set(key, {
+          startStr: pStart,
+          endStr: pEnd,
+          days: 1,
+          total: profile.dailyAllowance!
+        });
+      }
+    });
+
+    return Array.from(periods.values()).sort((a, b) => b.startStr.localeCompare(a.startStr));
+  };
+
   const getAttendanceChartData = () => {
     return Array.from({ length: 7 }).map((_, i) => {
       const d = subDays(new Date(), 6 - i);
       const dStr = format(d, 'yyyy-MM-dd');
-      const dayLogs = recentLogs.filter(l => l.date === dStr);
+      const dayLogs = recentLogs.filter(l => l.date === dStr && l.status !== 'absent');
+      
+      let onTimeHours = 0;
+      let lateHours = 0;
+      
+      dayLogs.forEach(log => {
+        let hours = log.totalHours || 0;
+        
+        // Live active session tracking for today
+        if (log.date === todayStr && !log.timeOut) {
+          hours += activeSessionHours;
+        }
+        
+        if (log.status === 'late') {
+          lateHours += hours;
+        } else {
+          onTimeHours += hours;
+        }
+      });
+
       return {
         name: format(d, 'EEE'),
         fullDate: format(d, 'MMM dd, yyyy'),
-        onTime: dayLogs.filter(l => l.status !== 'late').length,
-        late: dayLogs.filter(l => l.status === 'late').length,
+        onTime: Number(onTimeHours.toFixed(2)),
+        late: Number(lateHours.toFixed(2)),
       };
     });
   };
@@ -424,6 +502,25 @@ export default function Dashboard() {
 
   return (
     <Layout title="My Daily Time Record">
+      {/* Notification Permission Indicator */}
+      {'Notification' in window && Notification.permission === 'default' && (
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-start justify-between">
+          <div className="flex">
+            <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+            <div className="ml-3 text-sm text-blue-700 dark:text-blue-300">
+              <p className="font-semibold mb-1">Enable 8-Hour Notifications</p>
+              <p>Get a friendly native alert when your daily hours are complete, even if you are in another tab.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => Notification.requestPermission().then(() => window.location.reload())}
+            className="ml-4 flex-shrink-0 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-500/20"
+          >
+            Allow
+          </button>
+        </div>
+      )}
+
       {profile?.role === 'intern' && (
         <div className="mb-6 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
           {profile.targetHours ? (
@@ -484,26 +581,55 @@ export default function Dashboard() {
 
           {(() => {
             const allowance = calculateCurrentAllowance();
+            const history = getAllowanceHistory();
+            
             if (!allowance) return null;
             return (
-              <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Current Cut-off Allowance</h3>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {format(new Date(allowance.startStr), 'MMM d')} - {format(new Date(allowance.endStr), 'MMM d, yyyy')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      ₱{allowance.total.toLocaleString()}
-                    </p>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
-                      {allowance.days} days present (₱{profile.dailyAllowance}/day)
-                    </p>
+              <>
+                <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Current Cut-off Allowance</h3>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {format(new Date(allowance.startStr), 'MMM d')} - {format(new Date(allowance.endStr), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        ₱{allowance.total.toLocaleString()}
+                      </p>
+                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1">
+                        {allowance.days} days present (₱{profile.dailyAllowance}/day)
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                {history.length > 0 && (
+                  <div className="mt-5 pt-5 border-t border-gray-100 dark:border-gray-700">
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Past Allowance History</h3>
+                    <div className="space-y-3">
+                      {history.slice(0, 3).map((period, idx) => (
+                        <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                          <div>
+                            <p className="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+                              {format(new Date(period.startStr), 'MMM d')} - {format(new Date(period.endStr), 'MMM d, yyyy')}
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                              {period.days} days
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[14px] font-bold text-gray-900 dark:text-white">
+                              ₱{period.total.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
@@ -646,7 +772,7 @@ export default function Dashboard() {
                   value={effectiveDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   max={todayStr}
-                  className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700"
+                  className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-semibold bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white cursor-pointer select-none outline-none hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md active:scale-[0.97] transition-all duration-300 ease-out"
                 />
                 {selectedDate && selectedDate !== todayStr && (
                   <button
@@ -720,31 +846,66 @@ export default function Dashboard() {
             <BarChart data={getAttendanceChartData()} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" className="dark:stroke-gray-700" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} width={40} allowDecimals={false} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} width={40} />
               <Tooltip 
                 cursor={{ fill: 'rgba(156, 163, 175, 0.1)' }}
-                content={({ active, payload, label }) => {
+                position={{ y: -10 }}
+                wrapperStyle={{ outline: 'none', transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)' }}
+                content={({ active, payload }) => {
                   if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    const hasOnTime = data.onTime > 0;
+                    const hasLate = data.late > 0;
+                    const totalHours = (data.onTime + data.late).toFixed(2);
+                    const isToday = data.fullDate === format(new Date(), 'MMM dd, yyyy');
+                    
+                    if (totalHours === "0.00") return null;
+
                     return (
-                      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
-                        <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">
-                          {payload[0].payload.fullDate || label}
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.75, y: 15 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ 
+                          type: 'spring', 
+                          stiffness: 250, 
+                          damping: 25,
+                          mass: 1.2
+                        }}
+                        className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] min-w-[200px]"
+                      >
+                        <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-2 mb-2 flex justify-between items-center">
+                          <span>{data.fullDate}</span>
+                          {isToday && (
+                            <span className="text-amber-500 text-[10px] uppercase font-bold flex items-center ml-3 tracking-wider">
+                              <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse mr-1.5"></span>
+                              Active
+                            </span>
+                          )}
                         </p>
-                        {payload.map((entry: any, index: number) => (
-                          <div key={index} className="flex items-center space-x-2 text-sm mt-1">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
-                            <span className="text-gray-600 dark:text-gray-400">{entry.name}:</span>
-                            <span className="font-medium text-gray-900 dark:text-white">{entry.value}</span>
+                        <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                          {totalHours} <span className="text-xs font-medium text-gray-500 dark:text-gray-400">hrs worked</span>
+                        </p>
+                        
+                        {hasOnTime && (
+                          <div className="flex items-center space-x-2 text-sm mt-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                            <span className="text-gray-600 dark:text-gray-400 font-medium">Recorded as on time</span>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                        {hasLate && (
+                          <div className="flex items-center space-x-2 text-sm mt-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                            <span className="text-gray-600 dark:text-gray-400 font-medium">Recorded as late</span>
+                          </div>
+                        )}
+                      </motion.div>
                     );
                   }
                   return null;
                 }}
               />
-              <Bar dataKey="onTime" name="On Time" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Bar dataKey="late" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="onTime" stackId="a" name="On Time" fill="#10B981" radius={[0, 0, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="late" stackId="a" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
