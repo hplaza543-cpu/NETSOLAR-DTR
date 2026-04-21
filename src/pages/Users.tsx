@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, getDocs, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, ArrowLeft, Search, FileText, ChevronUp, ChevronDown } from 'lucide-react';
+import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, Search, FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday, addDays, isWeekend } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
+import Layout from '../components/Layout';
 
 interface UserProfile {
   uid: string;
@@ -294,19 +295,9 @@ export default function Users() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <button
-          onClick={() => navigate('/admin')}
-          className="flex items-center justify-center w-10 h-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-gray-500 hover:text-amber-600 dark:text-gray-400 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:border-amber-200 dark:hover:border-amber-500/30 transition-all cursor-pointer flex-shrink-0"
-          title="Back to Dashboard"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">User Management & Progress</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <Layout title="User Management & Progress">
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* User List */}
         <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
           <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
@@ -380,7 +371,10 @@ export default function Users() {
                     {user.name}
                     {user.username && <span className="ml-2 text-xs font-normal text-gray-400">@{user.username}</span>}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user.role} • {user.department}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {user.role} • {user.department}
+                    {user.role === 'intern' && user.startDate && ` • Started: ${format(new Date(user.startDate), 'MMM d, yyyy')}`}
+                  </p>
                 </div>
               </button>
             )))}
@@ -409,6 +403,7 @@ export default function Users() {
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 capitalize mt-1">{selectedUser.role} • {selectedUser.department}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{selectedUser.email}</p>
+                    {selectedUser.phone && <p className="text-sm text-gray-500 dark:text-gray-400">{selectedUser.phone}</p>}
                   </div>
                 </div>
                 <button
@@ -638,17 +633,29 @@ export default function Users() {
                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} width={30} />
                          <Tooltip 
-                           cursor={{ fill: 'rgba(243, 244, 246, 0.5)' }}
-                           contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-bg-opacity, white)' }}
-                           labelFormatter={(label, payload) => {
-                             if (payload && payload.length > 0) {
-                               return payload[0].payload.fullDate;
+                           cursor={{ fill: 'rgba(156, 163, 175, 0.1)' }}
+                           content={({ active, payload, label }) => {
+                             if (active && payload && payload.length) {
+                               return (
+                                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
+                                   <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">
+                                     {payload[0].payload.fullDate || label}
+                                   </p>
+                                   {payload.map((entry: any, index: number) => (
+                                     <div key={index} className="flex items-center space-x-2 text-sm mt-1">
+                                       <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                                       <span className="text-gray-600 dark:text-gray-400">{entry.name}:</span>
+                                       <span className="font-medium text-gray-900 dark:text-white">{entry.value}</span>
+                                     </div>
+                                   ))}
+                                 </div>
+                               );
                              }
-                             return label;
+                             return null;
                            }}
                          />
-                         <Bar dataKey="present" name="Present" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                         <Bar dataKey="late" name="Late" fill="#1F2937" radius={[4, 4, 0, 0]} className="dark:fill-gray-400" />
+                         <Bar dataKey="present" name="Present" fill="#10B981" radius={[4, 4, 0, 0]} />
+                         <Bar dataKey="late" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} />
                        </BarChart>
                      </ResponsiveContainer>
                    </div>
@@ -690,5 +697,6 @@ export default function Users() {
         </div>
       </div>
     </div>
+    </Layout>
   );
 }

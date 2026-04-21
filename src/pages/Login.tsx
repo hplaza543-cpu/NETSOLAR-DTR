@@ -88,7 +88,11 @@ export default function Login() {
         throw signInErr;
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to log in');
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        setError("Invalid password. If you originally created this account using Google, please use the 'Log in with Google' button below instead.");
+      } else {
+        setError(err.message || 'Failed to log in');
+      }
     } finally {
       setLoading(false);
     }
@@ -191,7 +195,8 @@ export default function Login() {
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 placeholder="e.g. jdoe_99"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                autoComplete="username"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white lowercase"
               />
             </div>
             <div>

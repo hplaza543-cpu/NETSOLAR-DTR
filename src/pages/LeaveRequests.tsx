@@ -162,37 +162,37 @@ export default function LeaveRequests() {
         )}
 
         {showForm && !isAdmin && (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold mb-4">Submit Leave Request</h3>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Submit Leave Request</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
                   <input
                     type="date"
                     required
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
                   <input
                     type="date"
                     required
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   <option value="Vacation">Vacation Leave</option>
                   <option value="Sick">Sick Leave</option>
@@ -201,13 +201,13 @@ export default function LeaveRequests() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
                 <textarea
                   required
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Briefly explain your reason..."
                 />
               </div>
@@ -222,30 +222,30 @@ export default function LeaveRequests() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">{isAdmin ? 'All Leave Requests' : 'My Leave Requests'}</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{isAdmin ? 'All Leave Requests' : 'My Leave Requests'}</h3>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {requests.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">No leave requests found.</div>
+              <div className="p-6 text-center text-gray-500 dark:text-gray-400">No leave requests found.</div>
             ) : (
               requests.map(request => (
-                <div key={request.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div key={request.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <div className="flex items-start space-x-4">
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <Calendar className="w-6 h-6 text-gray-500" />
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg shrink-0">
+                      <Calendar className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                     </div>
                     <div>
                       <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-semibold text-gray-900">{request.type} Leave</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{request.type} Leave</span>
                         {getStatusBadge(request.status)}
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {format(new Date(request.startDate), 'MMM d, yyyy')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
                       </p>
-                      <p className="text-sm text-gray-500 italic">"{request.reason}"</p>
-                      <p className="text-xs text-gray-400 mt-2">Submitted on {format(new Date(request.createdAt), 'MMM d, yyyy')}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">"{request.reason}"</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Submitted on {format(new Date(request.createdAt), 'MMM d, yyyy')}</p>
                     </div>
                   </div>
                   
@@ -253,13 +253,13 @@ export default function LeaveRequests() {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'approved')}
-                        className="px-3 py-1.5 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors"
+                        className="px-3 py-1.5 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg text-sm font-medium transition-colors"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'rejected')}
-                        className="px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors"
+                        className="px-3 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg text-sm font-medium transition-colors"
                       >
                         Reject
                       </button>

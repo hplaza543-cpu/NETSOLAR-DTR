@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -9,6 +9,7 @@ export default function Register() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +21,26 @@ export default function Register() {
   const [targetHours, setTargetHours] = useState<number | ''>('');
   const [startDate, setStartDate] = useState('');
   const navigate = useNavigate();
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const departmentRef = useRef<HTMLSelectElement>(null);
+  const targetHoursRef = useRef<HTMLInputElement>(null);
+  const startDateRef = useRef<HTMLInputElement>(null);
+
+  const focusAndScroll = (ref: React.RefObject<HTMLElement>) => {
+    if (ref.current) {
+      ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Small timeout to allow scrolling to settle before focus, or focus immediately 
+      setTimeout(() => {
+        ref.current?.focus({ preventScroll: true });
+      }, 50);
+    }
+  };
 
   const DEPARTMENTS = ['Project Management Engineer', 'HR', 'Marketing', 'Accounting', 'Sales', 'Operations', 'SPT', 'O&M', 'HOME', 'Other'];
 
@@ -40,6 +61,7 @@ export default function Register() {
       username: usernameLowerCase,
       name: user.displayName || name || 'Unknown User',
       email: user.email || email || '',
+      phone: phone.trim(),
       role,
       department: department.trim(),
       photoURL: user.photoURL || '',
@@ -81,21 +103,52 @@ export default function Register() {
 
   const handleEmailRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      setError('Please provide your full name');
+      focusAndScroll(nameRef);
+      return;
+    }
     if (!username.trim()) {
       setError('Please provide a username');
+      focusAndScroll(usernameRef);
       return;
     }
-    if (!department.trim()) {
-      setError('Please select a department');
+    if (!email.trim()) {
+      setError('Please provide an email');
+      focusAndScroll(emailRef);
       return;
     }
-    if (role === 'intern' && (!targetHours || !startDate)) {
-      setError('Please provide target hours and start date for interns');
+    if (!password) {
+      setError('Please provide a password');
+      focusAndScroll(passwordRef);
+      return;
+    }
+    if (!confirmPassword) {
+      setError('Please confirm your password');
+      focusAndScroll(confirmPasswordRef);
       return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      focusAndScroll(confirmPasswordRef);
       return;
+    }
+    if (!department.trim()) {
+      setError('Please select a department');
+      focusAndScroll(departmentRef);
+      return;
+    }
+    if (role === 'intern') {
+      if (!targetHours) {
+        setError('Please provide target hours for interns');
+        focusAndScroll(targetHoursRef);
+        return;
+      }
+      if (!startDate) {
+        setError('Please provide start date for interns');
+        focusAndScroll(startDateRef);
+        return;
+      }
     }
     try {
       setError('');
@@ -149,26 +202,38 @@ export default function Register() {
 
       if (!name.trim()) {
         setError('Please provide your full name');
+        focusAndScroll(nameRef);
         setLoading(false);
         return;
       }
       
       if (!username.trim()) {
         setError('Please provide a unique username');
+        focusAndScroll(usernameRef);
         setLoading(false);
         return;
       }
 
       if (!department.trim()) {
         setError('Please select a department');
+        focusAndScroll(departmentRef);
         setLoading(false);
         return;
       }
       
-      if (role === 'intern' && (!targetHours || !startDate)) {
-        setError('Please provide target hours and start date for interns');
-        setLoading(false);
-        return;
+      if (role === 'intern') {
+        if (!targetHours) {
+          setError('Please provide target hours for interns');
+          focusAndScroll(targetHoursRef);
+          setLoading(false);
+          return;
+        }
+        if (!startDate) {
+          setError('Please provide start date for interns');
+          focusAndScroll(startDateRef);
+          setLoading(false);
+          return;
+        }
       }
 
       const usernameValue = username.toLowerCase().trim();
@@ -205,13 +270,14 @@ export default function Register() {
 
         <div className="mt-8 space-y-6">
           {!isGoogleAuthed ? (
-            <form onSubmit={handleEmailRegister} className="space-y-6">
+            <form onSubmit={handleEmailRegister} noValidate className="space-y-6">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                   <input
                     type="text"
                     required
+                    ref={nameRef}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -222,6 +288,7 @@ export default function Register() {
                   <input
                     type="text"
                     required
+                    ref={usernameRef}
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                     placeholder="e.g. john_doe123"
@@ -235,9 +302,23 @@ export default function Register() {
                   <input
                     type="email"
                     required
+                    ref={emailRef}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    ref={phoneRef}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. +63 912 345 6789"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
@@ -247,6 +328,7 @@ export default function Register() {
                     <input
                       type={showPassword ? "text" : "password"}
                       required
+                      ref={passwordRef}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
@@ -266,6 +348,7 @@ export default function Register() {
                     <input
                       type={showConfirmPassword ? "text" : "password"}
                       required
+                      ref={confirmPasswordRef}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
@@ -295,6 +378,7 @@ export default function Register() {
                   <select
                     value={department}
                     required
+                    ref={departmentRef}
                     onChange={(e) => setDepartment(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
@@ -312,6 +396,7 @@ export default function Register() {
                       <input
                         type="number"
                         required
+                        ref={targetHoursRef}
                         min="1"
                         value={targetHours}
                         onChange={(e) => setTargetHours(e.target.value ? Number(e.target.value) : '')}
@@ -324,6 +409,7 @@ export default function Register() {
                       <input
                         type="date"
                         required
+                        ref={startDateRef}
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -347,6 +433,7 @@ export default function Register() {
                 e.preventDefault();
                 handleGoogleRegister();
               }} 
+              noValidate
               className="space-y-4"
             >
               <div>
@@ -354,6 +441,7 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  ref={nameRef}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -365,10 +453,22 @@ export default function Register() {
                 <input
                   type="text"
                   required
+                  ref={usernameRef}
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white lowercase"
                   placeholder="e.g. jdoe_99"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  ref={phoneRef}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="e.g. +63 912 345 6789"
                 />
               </div>
               <div>
@@ -386,6 +486,8 @@ export default function Register() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
                 <select
                   value={department}
+                  required
+                  ref={departmentRef}
                   onChange={(e) => setDepartment(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
@@ -403,6 +505,7 @@ export default function Register() {
                     <input
                       type="number"
                       required
+                      ref={targetHoursRef}
                       min="1"
                       value={targetHours}
                       onChange={(e) => setTargetHours(e.target.value ? Number(e.target.value) : '')}
@@ -415,6 +518,7 @@ export default function Register() {
                     <input
                       type="date"
                       required
+                      ref={startDateRef}
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"

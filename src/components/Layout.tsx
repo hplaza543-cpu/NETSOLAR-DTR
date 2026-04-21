@@ -156,7 +156,7 @@ export default function Layout({ children, title }: LayoutProps) {
           <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50 mt-auto">
             <div className="flex items-center justify-between p-1.5 rounded-xl hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors">
               <div 
-                className="flex items-center cursor-pointer py-1 px-1.5 rounded-lg flex-1"
+                className="flex items-center cursor-pointer py-1 px-1.5 rounded-lg flex-1 overflow-hidden"
                 onClick={() => navigate('/settings')}
               >
                 <div className="relative flex-shrink-0">
@@ -167,9 +167,12 @@ export default function Layout({ children, title }: LayoutProps) {
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full"></div>
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 ml-3 flex-1 whitespace-nowrap overflow-hidden">
-                  <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 truncate leading-tight">{profile?.name}</p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate capitalize leading-tight mt-0.5">{profile?.role}</p>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 ml-3 flex-1 overflow-hidden flex flex-col justify-center">
+                  <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 truncate leading-[1.2]">{profile?.name}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate leading-[1.2] mt-0.5">
+                    {profile?.username && <span>@{profile.username} • </span>}
+                    <span className="capitalize">{profile?.role}</span>
+                  </p>
                 </div>
               </div>
               

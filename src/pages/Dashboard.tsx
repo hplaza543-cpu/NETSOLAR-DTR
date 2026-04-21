@@ -196,6 +196,69 @@ export default function Dashboard() {
     }
   };
 
+  const handleManualTimeOut = async (logToUpdate: DTRLog) => {
+    const timeOutStr = prompt('Enter Time Out (YYYY-MM-DD HH:MM AM/PM) or leave blank for current time:', format(new Date(), 'yyyy-MM-dd hh:mm a'));
+    if (timeOutStr === null) return; // cancelled
+    
+    const manualActivities = prompt('Enter your daily activities/tasks for this session:');
+    if (manualActivities === null || !manualActivities.trim()) {
+      alert('Activities are required to set a time out.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      
+      let now;
+      try {
+        // Try parsing the input. Let date-fns/browser handle basic formats. 
+        // For simplicity we will use new Date() if they left it blank, or the string they typed
+        now = timeOutStr.trim() ? new Date(timeOutStr) : new Date();
+        if (isNaN(now.getTime())) throw new Error("Invalid date");
+      } catch (e) {
+        alert("Invalid time format. Please use something like '2026-04-20 05:00 PM' or leave blank for the current time.");
+        return;
+      }
+
+      const timeInDate = new Date(logToUpdate.timeIn);
+      if (now < timeInDate) {
+         alert("Time out cannot be earlier than time in.");
+         return;
+      }
+
+      const diffMs = now.getTime() - timeInDate.getTime();
+      const totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+
+      const logRef = doc(db, 'dtr_logs', logToUpdate.id);
+      await updateDoc(logRef, {
+        timeOut: now.toISOString(),
+        totalHours,
+        activities: manualActivities
+      });
+      
+      await logAuditAction(
+        profile?.uid || user?.uid || 'unknown',
+        profile?.name || user?.email || 'Unknown User',
+        'manual_time_out',
+        `Manually timed out for ${logToUpdate.date} at ${format(now, 'hh:mm a')}. Logged ${totalHours} hours.`,
+        logToUpdate.id
+      );
+
+      // If it's today's log, update it
+      if (todayLog && todayLog.id === logToUpdate.id) {
+        setTodayLog({ ...todayLog, timeOut: now.toISOString(), totalHours, activities: manualActivities });
+      }
+      
+      fetchLogs();
+      alert(`Successfully logged out. Total hours: ${totalHours}`);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update time out');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const calculateCurrentAllowance = () => {
     if (!profile || profile.role !== 'intern' || !profile.dailyAllowance) return null;
     
@@ -262,10 +325,22 @@ export default function Dashboard() {
       // Completed, get the last log date or today
       expectedFinishDate = recentLogs.length > 0 ? new Date(recentLogs[0].date) : new Date();
     } else {
-      let daysToAdd = Math.ceil(remaining / 8);
+      // Calculate average daily hours based on logs
+      let avgDailyHours = 8; // Default standard workday
+      
+      // Only establish a trend if they have worked a few days. 
+      // If they just clocked in for 5 minutes on day 1, projecting that average takes decades.
+      if (uniqueDays >= 3) {
+        avgDailyHours = totalDone / uniqueDays;
+      }
+      
+      // Set reasonable bounds to prevent wild mathematical estimates (e.g., minimum 4 hours, max 12)
+      avgDailyHours = Math.max(4, Math.min(12, avgDailyHours));
+
+      let daysToAdd = Math.ceil(remaining / avgDailyHours);
       let dateCursor = new Date();
       
-      // If we assumed they work exactly 8 hours remaining per day
+      // Skip weekends to find the real expected date
       while (daysToAdd > 0) {
         dateCursor = addDays(dateCursor, 1);
         if (!isWeekend(dateCursor)) {
@@ -391,7 +466,7 @@ export default function Dashboard() {
                 <button
                   onClick={handleTimeIn}
                   disabled={actionLoading}
-                  className="w-full py-4 px-8 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-full shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all disabled:opacity-50 text-[15px]"
+                  className="w-full py-4 px-8 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 active:scale-[0.98] text-white font-semibold rounded-full shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all duration-300 ease-out disabled:opacity-50 text-[15px]"
                 >
                   {actionLoading ? 'Processing...' : 'TIME IN'}
                 </button>
@@ -479,14 +554,14 @@ export default function Dashboard() {
                       <button
                         onClick={handleUpdateActivities}
                         disabled={actionLoading}
-                        className="flex-1 py-4 px-8 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-full shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all disabled:opacity-50 text-[15px]"
+                        className="flex-1 py-4 px-8 bg-transparent border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 active:bg-gray-100 dark:active:bg-gray-800 active:scale-[0.98] text-gray-800 dark:text-gray-200 font-semibold rounded-full transition-all duration-300 ease-out disabled:opacity-50 text-[15px]"
                       >
                         Save Notes
                       </button>
                       <button
                         onClick={handleTimeOut}
                         disabled={actionLoading}
-                        className="flex-1 py-4 px-8 bg-transparent border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 text-gray-800 dark:text-gray-200 font-semibold rounded-full transition-colors disabled:opacity-50 text-[15px]"
+                        className="flex-1 py-4 px-8 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 active:scale-[0.98] text-white font-semibold rounded-full shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all duration-300 ease-out disabled:opacity-50 text-[15px]"
                       >
                         TIME OUT
                       </button>
@@ -546,7 +621,19 @@ export default function Dashboard() {
                           <span className="text-gray-400 dark:text-gray-500 italic">No activities logged</span>
                         )}
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Out: {log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : 'Active'} 
+                          Out: {log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : (
+                            <span className="flex items-center space-x-2">
+                              <span className="text-amber-500 font-medium">Active</span>
+                              {profile?.role === 'intern' && log.date !== todayStr && (
+                                <button 
+                                  onClick={() => handleManualTimeOut(log)}
+                                  className="ml-2 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded text-[10px] uppercase font-bold tracking-wider transition-colors"
+                                >
+                                  Set Time Out
+                                </button>
+                              )}
+                            </span>
+                          )} 
                           {log.totalHours && ` • ${log.totalHours} hrs`}
                         </div>
                       </div>
@@ -573,17 +660,29 @@ export default function Dashboard() {
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 13 }} width={40} allowDecimals={false} />
               <Tooltip 
-                cursor={{ fill: 'rgba(245, 158, 11, 0.05)' }}
-                contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tw-bg-opacity, white)' }}
-                labelFormatter={(label, payload) => {
-                  if (payload && payload.length > 0) {
-                    return <span className="font-semibold text-gray-900 dark:text-gray-100">{payload[0].payload.fullDate}</span>;
+                cursor={{ fill: 'rgba(156, 163, 175, 0.1)' }}
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
+                        <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">
+                          {payload[0].payload.fullDate || label}
+                        </p>
+                        {payload.map((entry: any, index: number) => (
+                          <div key={index} className="flex items-center space-x-2 text-sm mt-1">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                            <span className="text-gray-600 dark:text-gray-400">{entry.name}:</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{entry.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
                   }
-                  return label;
+                  return null;
                 }}
               />
               <Bar dataKey="onTime" name="On Time" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Bar dataKey="late" name="Late" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="late" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
