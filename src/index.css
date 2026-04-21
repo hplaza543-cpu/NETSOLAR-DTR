@@ -18,6 +18,13 @@ body {
   color-scheme: light;
 }
 
+/* Fallback transitions for smooth dark/light mode toggling */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .dark {
   color-scheme: dark;
 }

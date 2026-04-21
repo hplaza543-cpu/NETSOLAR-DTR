@@ -3,7 +3,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Sun, Moon } from 'lucide-react';
+import { useTheme } from '../lib/ThemeContext';
+import { motion } from 'motion/react';
 
 export default function Login() {
   const [usernameInput, setUsernameInput] = useState('');
@@ -12,6 +14,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,21 +170,63 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12">
-      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-amber-500 rounded-full flex items-center justify-center mb-4 text-white">
-            <span className="font-bold text-2xl">N</span>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">NETSOLAR</h2>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Daily Time Record System</p>
-        </div>
+    <div className="min-h-screen flex bg-white dark:bg-gray-900 relative">
+      {/* Theme Toggle */}
+      <button
+        onClick={toggleTheme}
+        className="absolute top-4 right-4 z-50 p-2 rounded-full bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 shadow-sm border border-gray-200 dark:border-gray-700 transition-all hover:scale-105 active:scale-95"
+        title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
 
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 p-3 rounded-lg text-sm text-center">
-            {error}
+      {/* Left Panel - Image Cover */}
+      <div className="hidden lg:flex lg:w-[55%] relative bg-gray-900">
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent z-10"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1509391366360-12006cb75b23?q=80&w=2670&auto=format&fit=crop" 
+          alt="Solar Panels" 
+          className="absolute inset-0 w-full h-full object-cover opacity-90"
+        />
+        <div className="absolute inset-0 z-20 flex flex-col justify-between p-12 lg:p-20">
+          <div>
+            <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
+              <span className="font-extrabold text-3xl">N</span>
+            </div>
+            <h2 className="text-2xl font-bold text-white mt-6 tracking-tight">NETSOLAR</h2>
           </div>
-        )}
+          <div className="text-white max-w-lg">
+            <h1 className="text-4xl xl:text-5xl font-bold tracking-tight mb-6 leading-tight">
+              Empowering the future of <span className="text-amber-400">renewable energy.</span>
+            </h1>
+            <p className="text-lg text-gray-300 font-medium">
+              Streamline your workflow with our advanced Daily Time Record System. Built specifically for the modern solar workforce.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Form */}
+      <motion.div 
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="w-full lg:w-[45%] flex items-center justify-center p-6 sm:p-12 bg-gray-50 dark:bg-gray-900 overflow-y-auto"
+      >
+        <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-gray-100 dark:border-gray-700/50">
+          <div className="text-center lg:text-left">
+            <div className="lg:hidden mx-auto h-12 w-12 bg-amber-500 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-amber-500/20">
+              <span className="font-bold text-2xl">N</span>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome back</h2>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 font-medium">Sign in to your NETSOLAR account</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 p-4 rounded-xl text-sm text-center font-medium">
+              {error}
+            </div>
+          )}
 
         <form onSubmit={handleEmailLogin} className="mt-8 space-y-6">
           <div className="space-y-4">
@@ -196,7 +241,7 @@ export default function Login() {
                 onChange={(e) => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                 placeholder="e.g. jdoe_99"
                 autoComplete="username"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white lowercase"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 bg-gray-50/50 dark:bg-gray-900/50 text-gray-900 dark:text-white lowercase transition-all duration-300 hover:border-gray-300 dark:hover:border-gray-600 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_4px_20px_-4px_rgba(245,158,11,0.15)] focus:-translate-y-0.5"
               />
             </div>
             <div>
@@ -212,12 +257,12 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 bg-gray-50/50 dark:bg-gray-900/50 text-gray-900 dark:text-white pr-10 transition-all duration-300 hover:border-gray-300 dark:hover:border-gray-600 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_4px_20px_-4px_rgba(245,158,11,0.15)] focus:-translate-y-0.5"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -228,7 +273,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex justify-center py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all disabled:opacity-50 text-[15px]"
+            className="w-full flex justify-center py-3 px-4 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 text-[15px]"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -248,7 +293,7 @@ export default function Login() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full flex justify-center items-center py-3 px-4 border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 rounded-xl bg-white dark:bg-gray-700 text-[15px] font-semibold text-gray-700 dark:text-gray-200 transition-colors disabled:opacity-50"
+              className="w-full flex justify-center items-center py-3 px-4 border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 rounded-xl bg-white dark:bg-gray-700 text-[15px] font-semibold text-gray-700 dark:text-gray-200 transition-all active:scale-[0.98] disabled:opacity-50"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -261,13 +306,14 @@ export default function Login() {
           </div>
         </div>
         
-        <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+        <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6 pb-2">
           Don't have an account?{' '}
-          <Link to="/register" className="font-medium text-amber-600 dark:text-amber-500 hover:text-amber-500 dark:hover:text-amber-400">
+          <Link to="/register" className="font-semibold text-amber-600 dark:text-amber-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors">
             Register here
           </Link>
         </div>
       </div>
+     </motion.div>
     </div>
   );
 }
