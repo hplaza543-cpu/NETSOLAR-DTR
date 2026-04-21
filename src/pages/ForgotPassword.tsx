@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Mail, ArrowLeft, CheckCircle2, AlertCircle, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../lib/ThemeContext';
+import { motion } from 'motion/react';
 
 export default function ForgotPassword() {
   const [inputVal, setInputVal] = useState('');
@@ -94,34 +95,45 @@ export default function ForgotPassword() {
       </button>
 
       {/* Left Panel - Image Cover */}
-      <div className="hidden lg:flex lg:w-[55%] relative bg-gray-900">
+      <div className="hidden lg:flex lg:w-[55%] relative bg-gray-900 sticky top-0 h-screen overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent z-10"></div>
         <img 
           src="https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?q=80&w=2574&auto=format&fit=crop" 
-          alt="Professional Environment" 
-          className="absolute inset-0 w-full h-full object-cover opacity-90"
+          alt="Professional Environment"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-[10s] hover:scale-105"
         />
-        <div className="absolute inset-0 z-20 flex flex-col justify-between p-12 lg:p-20">
+        <div className="absolute inset-0 z-20 flex flex-col justify-between p-12 lg:p-16">
           <div>
             <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
               <span className="font-extrabold text-3xl">N</span>
             </div>
             <h2 className="text-2xl font-bold text-white mt-6 tracking-tight">NETSOLAR</h2>
           </div>
-          <div className="text-white max-w-lg">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="text-white max-w-lg mb-8"
+          >
             <h1 className="text-4xl xl:text-5xl font-bold tracking-tight mb-6 leading-tight">
               Regain access to your <span className="text-amber-400">workspace.</span>
             </h1>
             <p className="text-lg text-gray-300 font-medium">
               We'll help you get back on track securely and easily.
             </p>
-          </div>
+          </motion.div>
         </div>
       </div>
 
       {/* Right Panel - Form */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center p-6 sm:p-12 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-gray-100 dark:border-gray-700/50">
+      <motion.div 
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="w-full lg:w-[45%] flex justify-center p-6 sm:p-12 lg:p-16 overflow-y-auto bg-gray-50 dark:bg-gray-900 relative"
+      >
+        <div className="max-w-xl w-full my-auto space-y-8 bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-gray-100 dark:border-gray-700/50">
           <div className="text-center lg:text-left">
             <div className="lg:hidden mx-auto h-12 w-12 bg-amber-500 rounded-xl flex items-center justify-center mb-6 text-white shadow-lg shadow-amber-500/20">
               <span className="font-bold text-2xl">N</span>
@@ -170,7 +182,7 @@ export default function ForgotPassword() {
             </Link>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

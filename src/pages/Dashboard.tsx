@@ -7,6 +7,44 @@ import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
 import { Clock, CheckCircle2, AlertCircle, BarChart as BarChartIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { motion, AnimatePresence } from 'motion/react';
+
+const playNotificationSound = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    
+    // Resume context if suspended (browser auto-play policy)
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    
+    const playNote = (freq: number, startTime: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startTime);
+      
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = ctx.currentTime;
+    // Play a pleasant ascending arpeggio chime
+    playNote(523.25, now, 0.4); // C5
+    playNote(659.25, now + 0.15, 0.4); // E5
+    playNote(783.99, now + 0.3, 0.8); // G5 
+  } catch (e) {
+    console.error('Audio play failed:', e);
+  }
+};
 
 interface DTRLog {
   id: string;
@@ -30,11 +68,17 @@ export default function Dashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [cumulativeHours, setCumulativeHours] = useState(0);
   const [activeSessionHours, setActiveSessionHours] = useState(0);
+  const [showTimeOutAlert, setShowTimeOutAlert] = useState(false);
   const [error, setError] = useState('');
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
+    // Request permission for native OS notifications
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    
     if (user) {
       fetchLogs();
     }
@@ -49,6 +93,23 @@ export default function Dashboard() {
         const diffMs = now.getTime() - timeInDate.getTime();
         const hours = diffMs / (1000 * 60 * 60);
         setActiveSessionHours(hours);
+
+        // Check for 8 hours completion notification
+        if (hours >= 8) {
+          const notificationKey = `notified_8h_${todayLog.id}`;
+          if (!localStorage.getItem(notificationKey)) {
+            localStorage.setItem(notificationKey, 'true');
+            setShowTimeOutAlert(true);
+            playNotificationSound();
+            
+            // Trigger native OS notification (shows up even if they are in another tab/app)
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('8 Hours Completed', {
+                body: "You have completed your required 8 hours for today. Don't forget to time out in the NETSOLAR app!"
+              });
+            }
+          }
+        }
       };
       updateActiveHours();
       interval = setInterval(updateActiveHours, 60000); // Update every minute
@@ -559,6 +620,7 @@ export default function Dashboard() {
                         Save Notes
                       </button>
                       <button
+                        id="timeout-button"
                         onClick={handleTimeOut}
                         disabled={actionLoading}
                         className="flex-1 py-4 px-8 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 active:scale-[0.98] text-white font-semibold rounded-full shadow-[0_10px_20px_-5px_rgba(245,158,11,0.4)] transition-all duration-300 ease-out disabled:opacity-50 text-[15px]"
@@ -687,6 +749,52 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* 8-Hour Completion Notification Toast */}
+      <AnimatePresence>
+        {showTimeOutAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-amber-200 dark:border-amber-900/50 p-5 pl-6"
+          >
+            <div className="flex items-start">
+              <div className="flex-shrink-0 pt-0.5">
+                <CheckCircle2 className="h-8 w-8 text-amber-500 animate-pulse" />
+              </div>
+              <div className="ml-4 w-0 flex-1">
+                <h3 className="text-[16px] font-bold text-gray-900 dark:text-white">
+                  8 Hours Completed
+                </h3>
+                <p className="mt-1 text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                  You have completed your required 8 hours for today. Don't forget to time out!
+                </p>
+                <div className="mt-4 flex space-x-3">
+                  <button
+                    onClick={() => {
+                      document.getElementById('timeout-button')?.scrollIntoView({ behavior: 'smooth' });
+                      setShowTimeOutAlert(false);
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-semibold rounded-lg text-white bg-amber-500 hover:bg-amber-600 active:scale-95 transition-all shadow-md shadow-amber-500/20"
+                  >
+                    Time Out Now
+                  </button>
+                  <button
+                    onClick={() => setShowTimeOutAlert(false)}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-all"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+            {/* Left accent border */}
+            <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-amber-400 to-amber-600 rounded-l-2xl"></div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </Layout>
   );

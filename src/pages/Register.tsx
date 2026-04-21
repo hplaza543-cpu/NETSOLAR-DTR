@@ -264,12 +264,13 @@ export default function Register() {
       </button>
 
       {/* Left Panel - Image Cover */}
-      <div className="hidden lg:flex lg:w-[55%] relative bg-gray-900 sticky top-0 h-screen">
+      <div className="hidden lg:flex lg:w-[55%] relative bg-gray-900 sticky top-0 h-screen overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent z-10"></div>
         <img 
           src="https://images.unsplash.com/photo-1549813264-1f5518b082bb?q=80&w=2574&auto=format&fit=crop" 
-          alt="Modern Desk" 
-          className="absolute inset-0 w-full h-full object-cover opacity-90"
+          alt="Modern Desk"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-[10s] hover:scale-105"
         />
         <div className="absolute inset-0 z-20 flex flex-col justify-between p-12 lg:p-16">
           <div>
@@ -278,14 +279,19 @@ export default function Register() {
             </div>
             <h2 className="text-2xl font-bold text-white mt-6 tracking-tight">NETSOLAR</h2>
           </div>
-          <div className="text-white max-w-lg mb-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="text-white max-w-lg mb-8"
+          >
             <h1 className="text-4xl xl:text-5xl font-bold tracking-tight mb-6 leading-tight">
               Start your journey <br/>with <span className="text-amber-400">NETSOLAR.</span>
             </h1>
             <p className="text-lg text-gray-300 font-medium">
               Create an account to track your daily records, request leaves, and monitor your career progress.
             </p>
-          </div>
+          </motion.div>
         </div>
       </div>
 
