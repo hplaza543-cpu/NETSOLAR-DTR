@@ -2,204 +2,137 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "A user of the NETSOLAR DTR system.",
+      "description": "User profile document",
       "type": "object",
       "properties": {
-        "uid": {
-          "type": "string",
-          "description": "The user's Firebase Auth UID."
-        },
-        "name": {
-          "type": "string",
-          "description": "The user's full name."
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "role": {
-          "type": "string",
-          "enum": ["admin", "employee", "intern"],
-          "description": "The user's role in the system."
-        },
-        "department": {
-          "type": "string",
-          "description": "The department the user belongs to."
-        },
-        "phone": {
-          "type": "string",
-          "description": "The telephone number of the user."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the user account was created."
-        }
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["employee", "intern", "admin"] },
+        "department": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "targetHours": { "type": "number" },
+        "startDate": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
-      "required": ["uid", "name", "email", "role", "createdAt"]
+      "required": ["uid", "username", "name", "email", "role", "createdAt", "status"]
+    },
+    "Username": {
+      "title": "Username",
+      "description": "Username claim document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" }
+      },
+      "required": ["uid"]
     },
     "DTRLog": {
       "title": "DTR Log",
-      "description": "A daily time record entry.",
+      "description": "Daily Time Record Log",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The UID of the user who owns this log."
-        },
-        "date": {
-          "type": "string",
-          "description": "The date of the log in YYYY-MM-DD format."
-        },
-        "timeIn": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The time the user clocked in."
-        },
-        "timeOut": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The time the user clocked out."
-        },
-        "totalHours": {
-          "type": "number",
-          "description": "The total hours worked."
-        },
-        "status": {
-          "type": "string",
-          "enum": ["on-time", "late", "absent", "incomplete"],
-          "description": "The status of the DTR."
-        },
-        "activities": {
-          "type": "string",
-          "description": "Tasks done per day."
-        },
-        "notes": {
-          "type": "string",
-          "description": "Additional notes."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the log was created."
-        }
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "timeIn": { "type": "string" },
+        "timeOut": { "type": "string" },
+        "totalHours": { "type": "number" },
+        "status": { "type": "string", "enum": ["late", "on-time"] },
+        "activities": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
       "required": ["userId", "date", "timeIn", "createdAt"]
     },
-    "Department": {
-      "title": "Department",
-      "description": "A department in the company.",
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Company announcement",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the department."
-        },
-        "description": {
-          "type": "string",
-          "description": "A description of the department."
-        }
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
-      "required": ["name"]
+      "required": ["title", "content", "authorId", "authorName", "createdAt"]
     },
     "Adjustment": {
       "title": "Adjustment",
-      "description": "A request for a time correction or overtime.",
+      "description": "Adjustment Request",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The UID of the user who requested the adjustment."
-        },
-        "date": {
-          "type": "string",
-          "description": "The date of the adjustment in YYYY-MM-DD format."
-        },
-        "type": {
-          "type": "string",
-          "enum": ["correction", "overtime"],
-          "description": "The type of adjustment."
-        },
-        "requestedTimeIn": {
-          "type": "string",
-          "description": "The newly requested time in."
-        },
-        "requestedTimeOut": {
-          "type": "string",
-          "description": "The newly requested time out."
-        },
-        "reason": {
-          "type": "string",
-          "description": "The reason for the adjustment."
-        },
-        "status": {
-          "type": "string",
-          "enum": ["pending", "approved", "rejected"],
-          "description": "The status of the adjustment request."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the request was created."
-        }
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["correction", "overtime"] },
+        "requestedTimeIn": { "type": "string" },
+        "requestedTimeOut": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string" }
       },
       "required": ["userId", "date", "type", "requestedTimeIn", "requestedTimeOut", "reason", "status", "createdAt"]
     },
-    "AuditLog": {
-      "title": "Audit Log",
-      "description": "A record of significant actions performed in the system.",
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Leave Request",
       "type": "object",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The UID of the user who performed the action."
-        },
-        "userName": {
-          "type": "string",
-          "description": "The name of the user who performed the action."
-        },
-        "action": {
-          "type": "string",
-          "description": "The type of action performed (e.g., 'update_role', 'create_user', 'modify_dtr')."
-        },
-        "details": {
-          "type": "string",
-          "description": "Human-readable details of the action."
-        },
-        "targetId": {
-          "type": "string",
-          "description": "The ID of the affected resource (user ID, log ID, etc.)."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "When the action occurred."
-        }
+        "userId": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "type": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "startDate", "endDate", "type", "reason", "status", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Audit Log",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "targetId": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
       "required": ["userId", "userName", "action", "details", "createdAt"]
     }
   },
   "firestore": {
-    "/audit_logs/{logId}": {
-      "schema": { "$ref": "#/entities/AuditLog" },
-      "description": "Stores audit logs."
-    },
-    "/adjustments/{adjustmentId}": {
-      "schema": { "$ref": "#/entities/Adjustment" },
-      "description": "Stores adjustment requests."
-    },
-    "/users/{userId}": {
+    "users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
-      "description": "Stores user profiles."
+      "description": "User profiles"
     },
-    "/dtr_logs/{logId}": {
+    "usernames/{username}": {
+      "schema": { "$ref": "#/entities/Username" },
+      "description": "Username claims"
+    },
+    "dtr_logs/{logId}": {
       "schema": { "$ref": "#/entities/DTRLog" },
-      "description": "Stores daily time records."
+      "description": "DTR Logs"
     },
-    "/departments/{deptId}": {
-      "schema": { "$ref": "#/entities/Department" },
-      "description": "Stores department information."
+    "announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Announcements"
+    },
+    "adjustments/{adjustmentId}": {
+      "schema": { "$ref": "#/entities/Adjustment" },
+      "description": "Adjustment requests"
+    },
+    "leave_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Leave requests"
+    },
+    "audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit logs"
     }
   }
 }

@@ -3,7 +3,7 @@
   "appId": "1:93282252711:web:e344004ebedb3795752882",
   "apiKey": "AIzaSyDhPeP0mI7Yfncvbi_GujsiVgATBRpaTwU",
   "authDomain": "gen-lang-client-0265050062.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-e3660078-23be-4791-81f7-5ce9037cc942",
+  "firestoreDatabaseId": "netsolar-db",
   "storageBucket": "gen-lang-client-0265050062.firebasestorage.app",
   "messagingSenderId": "93282252711",
   "measurementId": ""
