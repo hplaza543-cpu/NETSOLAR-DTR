@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import Layout from '../components/Layout';
-import { format } from 'date-fns';
+import { format, parseISO, startOfYear } from 'date-fns';
 import { Search, Calendar, User as UserIcon, Clock, FileText } from 'lucide-react';
+import { fillMissingDaysForAllUsers, DTRLog } from '../lib/attendance';
 
 interface UserProfile {
   uid: string;
@@ -12,17 +13,8 @@ interface UserProfile {
   role: string;
   department?: string;
   status?: string;
-}
-
-interface DTRLog {
-  id: string;
-  userId: string;
-  date: string;
-  timeIn: string;
-  timeOut?: string;
-  totalHours?: number;
-  status?: string;
-  activities?: string;
+  startDate?: string;
+  createdAt?: string;
 }
 
 export default function Reports() {
@@ -38,8 +30,10 @@ export default function Reports() {
   }, []);
 
   useEffect(() => {
-    fetchLogs();
-  }, [selectedDate, selectedUserId]);
+    if (users.length > 0) {
+      fetchLogs();
+    }
+  }, [selectedDate, selectedUserId, users]);
 
   const fetchUsers = async () => {
     try {
@@ -60,30 +54,45 @@ export default function Reports() {
       
       let baseQuery;
       
-      if (selectedDate) {
+      if (selectedDate && !selectedUserId) {
         baseQuery = query(
           collection(db, 'dtr_logs'), 
           where('date', '==', selectedDate)
         );
       } else if (selectedUserId) {
+        // If a specific user is selected, if they also selected a date, we could just rely on db query, but to be safe:
         baseQuery = query(
           collection(db, 'dtr_logs'), 
           where('userId', '==', selectedUserId)
         );
       } else {
-        // Fallback, fetch limited recent logs to prevent overwhelming
-        baseQuery = query(
-          collection(db, 'dtr_logs')
-        );
+        // Fallback
+        baseQuery = query(collection(db, 'dtr_logs'));
       }
 
       const logsSnapshot = await getDocs(baseQuery);
       let fetchedLogs = logsSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as object) } as DTRLog));
       
-      // Memory filter for the remaining conditions to avoid composite index errors
-      if (selectedDate && selectedUserId) {
-         fetchedLogs = fetchedLogs.filter(log => log.userId === selectedUserId);
+      let intervalStart = startOfYear(new Date());
+      let intervalEnd = new Date();
+      
+      if (selectedDate) {
+        const d = parseISO(selectedDate);
+        intervalStart = d;
+        intervalEnd = d;
       }
+
+      // Memory filter
+      if (selectedDate && selectedUserId) {
+         fetchedLogs = fetchedLogs.filter(log => log.userId === selectedUserId && log.date === selectedDate);
+      }
+
+      // Fill missing
+      let targetUsers = users;
+      if (selectedUserId) {
+        targetUsers = users.filter(u => u.uid === selectedUserId);
+      }
+      fetchedLogs = fillMissingDaysForAllUsers(fetchedLogs, targetUsers, intervalStart, intervalEnd);
 
       setLogs(fetchedLogs);
     } catch (error) {
@@ -93,7 +102,7 @@ export default function Reports() {
     }
   };
 
-  const filteredLogs = logs.sort((a, b) => new Date(b.timeIn).getTime() - new Date(a.timeIn).getTime());
+  const filteredLogs = logs.sort((a, b) => new Date(b.timeIn || b.date).getTime() - new Date(a.timeIn || a.date).getTime());
 
   return (
     <Layout title="Activity Reports">

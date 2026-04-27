@@ -4,35 +4,11 @@ import { collection, query, getDocs, doc, updateDoc, where } from 'firebase/fire
 import { db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, Search, FileText, ChevronUp, ChevronDown } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday, addDays, isWeekend } from 'date-fns';
+import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday, addDays, isWeekend, startOfYear } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
-
-interface UserProfile {
-  uid: string;
-  name: string;
-  username?: string;
-  email: string;
-  role: 'admin' | 'employee' | 'intern' | 'accounting';
-  department?: string;
-  targetHours?: number;
-  startDate?: string;
-  dailyAllowance?: number;
-  salary?: number;
-  status?: 'active' | 'archived';
-}
-
-interface DTRLog {
-  id: string;
-  userId: string;
-  date: string;
-  timeIn?: string;
-  timeOut?: string;
-  totalHours: number;
-  status: string;
-  activities?: string;
-}
+import { UserProfile, DTRLog, fillMissingDaysForUser } from '../lib/attendance';
 
 export default function Users() {
   const { profile } = useAuth();
@@ -110,7 +86,16 @@ export default function Users() {
       // Fetch logs specifically for the selected user to calculate their progress/allowance
       const logsQuery = query(collection(db, 'dtr_logs'), where('userId', '==', userId));
       const logsSnapshot = await getDocs(logsQuery);
-      const fetchedLogs = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DTRLog));
+      let fetchedLogs = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DTRLog));
+      
+      const userObj = users.find(u => u.uid === userId);
+      if (userObj) {
+        // dynamically generate absent logs starting from user start date to today
+        const intervalStart = userObj.startDate ? new Date(userObj.startDate) : startOfYear(new Date());
+        const intervalEnd = new Date();
+        fetchedLogs = fillMissingDaysForUser(fetchedLogs, userObj, intervalStart, intervalEnd);
+      }
+      
       setLogs(fetchedLogs);
     } catch (error) {
       console.error("Error fetching user logs:", error);
@@ -208,6 +193,7 @@ export default function Users() {
         fullDate: format(d, 'MMM dd, yyyy'),
         present: dayLogs.filter(l => l.status !== 'absent').length,
         late: dayLogs.filter(l => l.status === 'late').length,
+        absent: dayLogs.filter(l => l.status === 'absent').length,
       };
     });
   };
@@ -628,7 +614,7 @@ export default function Users() {
                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Attendance Overview (7 Days)</h4>
                    <div className="h-48">
                      <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={getAttendanceChartData(selectedUser.uid)}>
+                         <BarChart data={getAttendanceChartData(selectedUser.uid)}>
                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" className="dark:stroke-gray-700" />
                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
                          <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} width={30} />
@@ -655,7 +641,8 @@ export default function Users() {
                            }}
                          />
                          <Bar dataKey="present" name="Present" fill="#10B981" radius={[4, 4, 0, 0]} />
-                         <Bar dataKey="late" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                         <Bar dataKey="late" name="Late" fill="#EAB308" radius={[4, 4, 0, 0]} />
+                         <Bar dataKey="absent" name="Absent" fill="#EF4444" radius={[4, 4, 0, 0]} />
                        </BarChart>
                      </ResponsiveContainer>
                    </div>

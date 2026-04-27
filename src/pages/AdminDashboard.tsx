@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import Layout from '../components/Layout';
-import { format, subDays, isSameDay } from 'date-fns';
+import { format, subDays, isSameDay, startOfMonth, startOfYear, parseISO, isBefore, isWeekend } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Bell, Users, Clock, AlertTriangle, Download, AlertCircle, Info } from 'lucide-react';
 import { motion } from 'motion/react';
+import { fillMissingDaysForAllUsers, DTRLog } from '../lib/attendance';
 
 interface UserProfile {
   uid: string;
@@ -15,17 +16,6 @@ interface UserProfile {
   department?: string;
   targetHours?: number;
   startDate?: string;
-}
-
-interface DTRLog {
-  id: string;
-  userId: string;
-  date: string;
-  timeIn: string;
-  timeOut?: string;
-  totalHours?: number;
-  status?: string;
-  activities?: string;
 }
 
 export default function AdminDashboard() {
@@ -50,8 +40,8 @@ export default function AdminDashboard() {
       // To keep query simple and leverage string dates: 
       // yyyy-MM-dd allows lexicographical comparison
       const d7 = subDays(new Date(), 7);
-      const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      const minDate = d7 < startOfMonth ? format(d7, 'yyyy-MM-dd') : format(startOfMonth, 'yyyy-MM-dd');
+      const startOfMth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const minDate = d7 < startOfMth ? format(d7, 'yyyy-MM-dd') : format(startOfMth, 'yyyy-MM-dd');
       
       const logsQuery = query(collection(db, 'dtr_logs'), where('date', '>=', minDate));
       const logsSnap = await getDocs(logsQuery);
@@ -127,16 +117,38 @@ export default function AdminDashboard() {
       return order[a.status] - order[b.status];
     });
 
-  // Chart Data: Last 7 days attendance
   const last7Days = Array.from({ length: 7 }).map((_, i) => {
     const d = subDays(new Date(), 6 - i);
     const dStr = format(d, 'yyyy-MM-dd');
     const dayLogs = logs.filter(l => l.date === dStr && employeeAndInternIds.has(l.userId));
+    
+    // We only calculate missing days if it's not a weekend
+    let absentCount = 0;
+    if (!isWeekend(d)) {
+      // Find out how many employees were actually active on this day. 
+      // For simplicity, we just count all active users who don't have a log.
+      // E.g., if a user just started yesterday, they shouldn't be "absent" 3 days ago.
+      let activeAsOfSet = 0;
+      employeesAndInterns.forEach(user => {
+        const userStartDateStr = user.startDate || user.createdAt;
+        let isActiveOnDate = true;
+        if (userStartDateStr) {
+           const sDate = userStartDateStr.includes('T') ? parseISO(userStartDateStr) : new Date(userStartDateStr);
+           if (!isNaN(sDate.getTime()) && isBefore(d, sDate) && !isSameDay(d, sDate)) {
+             isActiveOnDate = false;
+           }
+        }
+        if (isActiveOnDate) activeAsOfSet++;
+      });
+      absentCount = activeAsOfSet - dayLogs.filter(l => l.status !== 'absent').length;
+    }
+
     return {
       name: format(d, 'EEE'),
       fullDate: format(d, 'MMM dd, yyyy'),
       present: dayLogs.filter(l => l.status !== 'absent').length,
       late: dayLogs.filter(l => l.status === 'late').length,
+      absent: Math.max(0, absentCount)
     };
   });
 
@@ -144,8 +156,13 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const allLogsSnap = await getDocs(collection(db, 'dtr_logs'));
-      const allLogs: DTRLog[] = [];
+      let allLogs: DTRLog[] = [];
       allLogsSnap.forEach(doc => allLogs.push({ id: doc.id, ...doc.data() } as DTRLog));
+
+      // Fill missing absent days since start of year for active employees for the full export
+      const intervalStart = startOfYear(new Date());
+      const intervalEnd = new Date();
+      allLogs = fillMissingDaysForAllUsers(allLogs, employeesAndInterns, intervalStart, intervalEnd);
 
       const headers = ['Date', 'Name', 'Department', 'Role', 'Time In', 'Time Out', 'Total Hours', 'Status', 'Activities'];
       const rows = allLogs.map(log => {
@@ -157,7 +174,7 @@ export default function AdminDashboard() {
           user?.role || '',
           log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
           log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
-          log.totalHours || '',
+          log.totalHours || '0',
           log.status || '',
           `"${(log.activities || '').replace(/"/g, '""')}"`
         ].join(',');
@@ -179,41 +196,59 @@ export default function AdminDashboard() {
     }
   };
 
-  const exportInternMonthlyReport = () => {
-    const currentMonthStr = format(new Date(), 'yyyy-MM'); // e.g. "2026-04"
-    
-    const internUsers = users.filter(u => u.role === 'intern');
-    const internIds = new Set(internUsers.map(u => u.uid));
-    
-    const internLogs = logs.filter(log => 
-      internIds.has(log.userId) && log.date.startsWith(currentMonthStr)
-    );
+  const exportInternMonthlyReport = async () => {
+    try {
+      setLoading(true);
+      const currentMonthStr = format(new Date(), 'yyyy-MM'); // e.g. "2026-04"
+      
+      const internUsers = users.filter(u => u.role === 'intern');
+      
+      const allLogsSnap = await getDocs(collection(db, 'dtr_logs'));
+      let internLogs: DTRLog[] = [];
+      const internIds = new Set(internUsers.map(u => u.uid));
+      allLogsSnap.forEach(doc => {
+        const d = ({ id: doc.id, ...doc.data() } as DTRLog);
+        if (internIds.has(d.userId) && d.date.startsWith(currentMonthStr)) {
+          internLogs.push(d);
+        }
+      });
+      
+      // Fill missing days
+      const mthStart = startOfMonth(new Date());
+      const mthEnd = new Date();
+      internLogs = fillMissingDaysForAllUsers(internLogs, internUsers, mthStart, mthEnd);
 
-    const headers = ['Date', 'Name', 'Department', 'Time In', 'Time Out', 'Total Hours', 'Status', 'Activities', 'Target Hours', 'Start Date'];
-    const rows = internLogs.map(log => {
-      const user = internUsers.find(u => u.uid === log.userId);
-      return [
-        log.date,
-        user?.name || 'Unknown',
-        user?.department || '',
-        log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
-        log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
-        log.totalHours || '',
-        log.status || '',
-        `"${(log.activities || '').replace(/"/g, '""')}"`,
-        user?.targetHours || '',
-        user?.startDate || ''
-      ].join(',');
-    });
-    
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Intern_Monthly_Report_${currentMonthStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const headers = ['Date', 'Name', 'Department', 'Time In', 'Time Out', 'Total Hours', 'Status', 'Activities', 'Target Hours', 'Start Date'];
+      const rows = internLogs.map(log => {
+        const user = internUsers.find(u => u.uid === log.userId);
+        return [
+          log.date,
+          user?.name || 'Unknown',
+          user?.department || '',
+          log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
+          log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
+          log.totalHours || '0',
+          log.status || '',
+          `"${(log.activities || '').replace(/"/g, '""')}"`,
+          user?.targetHours || '',
+          user?.startDate || ''
+        ].join(',');
+      });
+      
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Intern_Monthly_Report_${currentMonthStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Failed to export logs:", error);
+      alert("Failed to export intern DTR data.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -316,7 +351,8 @@ export default function AdminDashboard() {
                     }}
                   />
                   <Bar dataKey="present" name="Present" fill="#10B981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="late" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="late" name="Late" fill="#EAB308" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="absent" name="Absent" fill="#EF4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -381,22 +417,22 @@ export default function AdminDashboard() {
             <div className="text-[12px] opacity-60 mb-2 uppercase tracking-wider">Quick Export</div>
             <div className="font-semibold text-[14px] mb-4">Generate Reports</div>
             <div className="space-y-3">
-              <button 
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
                 onClick={exportCSV}
-                className="group relative overflow-hidden w-full flex items-center justify-center py-2.5 px-4 bg-white/10 dark:bg-gray-700 text-white font-semibold rounded-full shadow-sm transition-all duration-300 ease-out text-[12px] active:scale-[0.95]"
+                className="w-full flex items-center justify-center py-2.5 px-4 bg-white/10 hover:bg-white/20 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold rounded-full transition-colors text-[12px]"
               >
-                <span className="absolute inset-0 w-full h-full bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
-                <Download className="w-4 h-4 mr-2 relative z-10" />
-                <span className="relative z-10">ALL DTR (CSV)</span>
-              </button>
-              <button 
+                <Download className="w-4 h-4 mr-2" />
+                ALL DTR (CSV)
+              </motion.button>
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
                 onClick={exportInternMonthlyReport}
-                className="group relative overflow-hidden w-full flex items-center justify-center py-2.5 px-4 bg-amber-500/20 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 font-semibold rounded-full shadow-sm transition-all duration-300 ease-out text-[12px] active:scale-[0.95]"
+                className="w-full flex items-center justify-center py-2.5 px-4 bg-amber-500/20 hover:bg-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-400 font-semibold rounded-full transition-colors text-[12px]"
               >
-                <span className="absolute inset-0 w-full h-full bg-amber-500/30 dark:bg-amber-500/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
-                <Download className="w-4 h-4 mr-2 relative z-10" />
-                <span className="relative z-10">INTERN MONTHLY (CSV)</span>
-              </button>
+                <Download className="w-4 h-4 mr-2" />
+                INTERN MONTHLY (CSV)
+              </motion.button>
             </div>
           </div>
 

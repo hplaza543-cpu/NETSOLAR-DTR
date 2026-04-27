@@ -4,32 +4,24 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import Layout from '../components/Layout';
 import { FileSpreadsheet, Download } from 'lucide-react';
-import { format } from 'date-fns';
-
-interface DTRLog {
-  id: string;
-  date: string;
-  timeIn: string;
-  timeOut?: string;
-  totalHours?: number;
-  status?: string;
-  activities?: string;
-}
+import { format, endOfMonth } from 'date-fns';
+import { fillMissingDaysForUser, DTRLog } from '../lib/attendance';
+import { motion } from 'motion/react';
 
 export default function Timesheets() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [logs, setLogs] = useState<DTRLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
 
   useEffect(() => {
-    if (user) {
+    if (user && profile) {
       fetchLogs();
     }
-  }, [user]);
+  }, [user, profile]);
 
   const fetchLogs = async () => {
-    if (!user) return;
+    if (!user || !profile) return;
     try {
       setLoading(true);
       const q = query(collection(db, 'dtr_logs'), where('userId', '==', user.uid));
@@ -46,9 +38,21 @@ export default function Timesheets() {
     }
   };
 
-  const filteredLogs = logs.filter(log => log.date.startsWith(selectedMonth));
+  const getFilteredLogs = () => {
+    const monthLogs = logs.filter(log => log.date.startsWith(selectedMonth));
+    if (!profile) return monthLogs;
+    
+    // dynamically generate absent logs for this month
+    const startOfMonth = new Date(selectedMonth + '-01T00:00:00');
+    const endOfThisMonth = endOfMonth(startOfMonth);
+    
+    return fillMissingDaysForUser(monthLogs, profile, startOfMonth, endOfThisMonth);
+  };
+
+  const filteredLogs = getFilteredLogs();
   
   const totalHours = filteredLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
+  const absentDays = filteredLogs.filter(log => log.status === 'absent').length;
   const lateDays = filteredLogs.filter(log => log.status === 'late').length;
 
   const exportCSV = () => {
@@ -90,26 +94,27 @@ export default function Timesheets() {
           <div className="flex items-center space-x-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Select Month</label>
-              <input
+              <motion.input
+                whileTap={{ scale: 0.95 }}
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-semibold bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white cursor-pointer select-none outline-none hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md active:scale-[0.97] transition-all duration-300 ease-out"
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-amber-500 focus:border-amber-500 text-sm font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
           </div>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             onClick={exportCSV}
             disabled={filteredLogs.length === 0}
-            className="group relative overflow-hidden flex items-center px-5 py-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded-xl shadow-sm transition-all duration-300 ease-out text-sm font-semibold disabled:opacity-50 active:scale-[0.95]"
+            className="flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
           >
-            <span className="absolute inset-0 w-full h-full bg-amber-500 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] -z-0"></span>
-            <Download className="w-4 h-4 mr-2 relative z-10" />
-            <span className="relative z-10">Export CSV</span>
-          </button>
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </motion.button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center shadow-sm">
             <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center mr-4">
               <FileSpreadsheet className="w-6 h-6" />
@@ -139,6 +144,17 @@ export default function Timesheets() {
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Late Days</p>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400">{lateDays}</p>
+             </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex items-center shadow-sm">
+            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400 flex items-center justify-center mr-4">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Absent Days</p>
+              <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{absentDays}</p>
              </div>
           </div>
         </div>
@@ -181,6 +197,8 @@ export default function Timesheets() {
                       <td className="px-6 py-4">
                         {log.status === 'late' ? (
                           <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 rounded text-xs font-medium">Late</span>
+                        ) : log.status === 'absent' ? (
+                          <span className="px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded text-xs font-medium">Absent</span>
                         ) : (
                           <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded text-xs font-medium">On Time</span>
                         )}

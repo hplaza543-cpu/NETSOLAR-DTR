@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Sun, Moon, LogOut, LayoutDashboard, Users, FileText, Settings, Calendar, FileSpreadsheet, Megaphone, Edit3, Bell, Search, HelpCircle, User } from 'lucide-react';
@@ -25,36 +25,37 @@ export default function Layout({ children, title }: LayoutProps) {
   const notificationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchAnnouncements = async () => {
-      try {
-        const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'), limit(4));
-        const snap = await getDocs(q);
-        
-        if (!snap.empty) {
-          const docs = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
-          setRecentAnnouncements(docs);
+    if (!profile) return;
 
-          if (profile && profile.role !== 'admin') {
-            const latest = docs[0];
-            const lastViewed = localStorage.getItem(`lastViewedAnnouncements_${profile.uid}`);
-            
-            if (!lastViewed || new Date(latest.createdAt) > new Date(lastViewed)) {
-              setHasNewAnnouncements(true);
-            } else {
-              setHasNewAnnouncements(false);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error checking announcements:", error);
-      }
-    };
-    
     // Check initially and then clear notification if we are on the page
     if (location.pathname === '/announcements') {
       setHasNewAnnouncements(false);
     }
-    fetchAnnouncements();
+
+    const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'), limit(4));
+    
+    // Use onSnapshot for real-time updates
+    const unsubscribe = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const docs = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+        setRecentAnnouncements(docs);
+
+        if (profile.role !== 'admin' && location.pathname !== '/announcements') {
+          const latest = docs[0];
+          const lastViewed = localStorage.getItem(`lastViewedAnnouncements_${profile.uid}`);
+          
+          if (!lastViewed || new Date(latest.createdAt) > new Date(lastViewed)) {
+            setHasNewAnnouncements(true);
+          } else {
+            setHasNewAnnouncements(false);
+          }
+        }
+      }
+    }, (error) => {
+      console.error("Error listening to announcements:", error);
+    });
+
+    return () => unsubscribe();
   }, [location.pathname, profile]);
 
   // Handle clicking outside of the notification popover

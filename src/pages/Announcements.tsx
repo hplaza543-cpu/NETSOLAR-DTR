@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import Layout from '../components/Layout';
@@ -29,27 +29,27 @@ export default function Announcements() {
   const isAdmin = profile?.role === 'admin';
 
   useEffect(() => {
-    fetchAnnouncements();
-  }, []);
-
-  const fetchAnnouncements = async () => {
-    try {
-      setLoading(true);
-      const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
+    setLoading(true);
+    const q = query(collection(db, 'announcements'), orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snap) => {
       const data: Announcement[] = [];
       snap.forEach(doc => data.push({ id: doc.id, ...doc.data() } as Announcement));
+      
       setAnnouncements(data);
-
+      
       if (data.length > 0 && profile) {
+        // Record that they have seen all up to this moment
         localStorage.setItem(`lastViewedAnnouncements_${profile.uid}`, new Date().toISOString());
       }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, 'announcements');
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'announcements');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [profile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +69,6 @@ export default function Announcements() {
       setTitle('');
       setContent('');
       setShowForm(false);
-      fetchAnnouncements();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'announcements');
     } finally {
@@ -81,7 +80,6 @@ export default function Announcements() {
     if (!window.confirm('Are you sure you want to delete this announcement?')) return;
     try {
       await deleteDoc(doc(db, 'announcements', id));
-      fetchAnnouncements();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
     }

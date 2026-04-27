@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, orderBy } from 'firebase/firestore';
-import { format, isThursday, isWednesday, nextWednesday, previousThursday, subDays, addDays, isWeekend } from 'date-fns';
+import { format, isThursday, isWednesday, nextWednesday, previousThursday, subDays, addDays, isWeekend, startOfYear } from 'date-fns';
+import { fillMissingDaysForUser } from '../lib/attendance';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { logAuditAction } from '../lib/audit';
@@ -127,7 +128,7 @@ export default function Dashboard() {
       const q = query(logsRef, where('userId', '==', user.uid));
       const querySnapshot = await getDocs(q);
       
-      const logs: DTRLog[] = [];
+      let logs: DTRLog[] = [];
       let total = 0;
       querySnapshot.forEach((doc) => {
         const data = doc.data() as DTRLog;
@@ -136,6 +137,13 @@ export default function Dashboard() {
           total += data.totalHours;
         }
       });
+
+      if (profile) {
+        const intervalStart = profile.startDate ? new Date(profile.startDate) : startOfYear(new Date());
+        const intervalEnd = new Date();
+        // @ts-ignore - The component uses a slightly different DTRLog interface but it is compatible
+        logs = fillMissingDaysForUser(logs, profile, intervalStart, intervalEnd);
+      }
 
       // Sort logs by date descending
       logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -416,12 +424,21 @@ export default function Dashboard() {
     return Array.from({ length: 7 }).map((_, i) => {
       const d = subDays(new Date(), 6 - i);
       const dStr = format(d, 'yyyy-MM-dd');
-      const dayLogs = recentLogs.filter(l => l.date === dStr && l.status !== 'absent');
+      const dayLogs = recentLogs.filter(l => l.date === dStr);
       
       let onTimeHours = 0;
       let lateHours = 0;
+      let absentHours = 0;
       
       dayLogs.forEach(log => {
+        if (log.status === 'absent') {
+          // Represent absence as full target day to be visible on the chart
+          // E.g., if total target hours is 40 / 5 = 8 hours per day, or fallback to 8
+          const targetDaily = profile && profile.targetHours ? Number(profile.targetHours) / 5 : 8;
+          absentHours += targetDaily;
+          return;
+        }
+
         let hours = log.totalHours || 0;
         
         // Live active session tracking for today
@@ -441,6 +458,7 @@ export default function Dashboard() {
         fullDate: format(d, 'MMM dd, yyyy'),
         onTime: Number(onTimeHours.toFixed(2)),
         late: Number(lateHours.toFixed(2)),
+        absent: Number(absentHours.toFixed(2)),
       };
     });
   };
@@ -767,20 +785,22 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-5 gap-4">
               <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white">Activity Log</h2>
               <div className="flex items-center space-x-2">
-                <input
+                <motion.input
+                  whileTap={{ scale: 0.95 }}
                   type="date"
                   value={effectiveDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   max={todayStr}
-                  className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm font-semibold bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white cursor-pointer select-none outline-none hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-md active:scale-[0.97] transition-all duration-300 ease-out"
+                  className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 transition-all"
                 />
                 {selectedDate && selectedDate !== todayStr && (
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setSelectedDate('')}
                     className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                   >
                     Today
-                  </button>
+                  </motion.button>
                 )}
               </div>
             </div>
@@ -856,10 +876,11 @@ export default function Dashboard() {
                     const data = payload[0].payload;
                     const hasOnTime = data.onTime > 0;
                     const hasLate = data.late > 0;
+                    const hasAbsent = data.absent > 0;
                     const totalHours = (data.onTime + data.late).toFixed(2);
                     const isToday = data.fullDate === format(new Date(), 'MMM dd, yyyy');
                     
-                    if (totalHours === "0.00") return null;
+                    if (totalHours === "0.00" && !hasAbsent) return null;
 
                     return (
                       <motion.div 
@@ -876,26 +897,33 @@ export default function Dashboard() {
                         <p className="font-semibold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-2 mb-2 flex justify-between items-center">
                           <span>{data.fullDate}</span>
                           {isToday && (
-                            <span className="text-amber-500 text-[10px] uppercase font-bold flex items-center ml-3 tracking-wider">
-                              <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse mr-1.5"></span>
+                            <span className="text-green-500 text-[10px] uppercase font-bold flex items-center ml-3 tracking-wider">
+                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse mr-1.5"></span>
                               Active
                             </span>
                           )}
                         </p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                          {totalHours} <span className="text-xs font-medium text-gray-500 dark:text-gray-400">hrs worked</span>
-                        </p>
                         
-                        {hasOnTime && (
+                        {!hasAbsent ? (
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                            {totalHours} <span className="text-xs font-medium text-gray-500 dark:text-gray-400">hrs worked</span>
+                          </p>
+                        ) : (
+                          <p className="text-2xl font-bold text-red-500 mb-2">
+                            Absent
+                          </p>
+                        )}
+                        
+                        {hasOnTime && !hasAbsent && (
                           <div className="flex items-center space-x-2 text-sm mt-2">
                             <div className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
                             <span className="text-gray-600 dark:text-gray-400 font-medium">Recorded as on time</span>
                           </div>
                         )}
-                        {hasLate && (
+                        {hasLate && !hasAbsent && (
                           <div className="flex items-center space-x-2 text-sm mt-2">
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
-                            <span className="text-gray-600 dark:text-gray-400 font-medium">Recorded as late</span>
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#EAB308]" />
+                            <span className="text-[#EAB308] font-medium">Recorded as late</span>
                           </div>
                         )}
                       </motion.div>
@@ -905,7 +933,8 @@ export default function Dashboard() {
                 }}
               />
               <Bar dataKey="onTime" stackId="a" name="On Time" fill="#10B981" radius={[0, 0, 0, 0]} maxBarSize={40} />
-              <Bar dataKey="late" stackId="a" name="Late" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="late" stackId="a" name="Late" fill="#EAB308" radius={[0, 0, 0, 0]} maxBarSize={40} />
+              <Bar dataKey="absent" stackId="a" name="Absent" fill="#EF4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>
