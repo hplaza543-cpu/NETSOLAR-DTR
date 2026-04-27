@@ -3,15 +3,9 @@ import { eachDayOfInterval, isWeekend, isBefore, format, parseISO } from 'date-f
 export interface UserProfile {
   uid: string;
   name: string;
-  username?: string;
-  email?: string;
-  role: string | 'admin' | 'employee' | 'intern' | 'accounting';
+  role: string;
   department?: string;
-  targetHours?: number;
   startDate?: string;
-  dailyAllowance?: number;
-  salary?: number;
-  status?: 'active' | 'archived';
   createdAt?: string;
 }
 

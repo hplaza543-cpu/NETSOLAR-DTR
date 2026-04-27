@@ -8,7 +8,21 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, ne
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
-import { UserProfile, DTRLog, fillMissingDaysForUser } from '../lib/attendance';
+import { fillMissingDaysForUser, DTRLog } from '../lib/attendance';
+
+interface UserProfile {
+  uid: string;
+  name: string;
+  username?: string;
+  email: string;
+  role: 'admin' | 'employee' | 'intern' | 'accounting';
+  department?: string;
+  targetHours?: number;
+  startDate?: string;
+  dailyAllowance?: number;
+  salary?: number;
+  status?: 'active' | 'archived';
+}
 
 export default function Users() {
   const { profile } = useAuth();
