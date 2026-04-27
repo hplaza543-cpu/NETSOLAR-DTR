@@ -8,7 +8,7 @@ import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, ne
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
-import { fillMissingDaysForUser, DTRLog } from '../lib/attendance';
+import { fillMissingDaysForUser } from '../lib/attendance';
 
 interface UserProfile {
   uid: string;
@@ -22,6 +22,17 @@ interface UserProfile {
   dailyAllowance?: number;
   salary?: number;
   status?: 'active' | 'archived';
+}
+
+interface DTRLog {
+  id: string;
+  userId: string;
+  date: string;
+  timeIn?: string;
+  timeOut?: string;
+  totalHours: number;
+  status: string;
+  activities?: string;
 }
 
 export default function Users() {
