@@ -30,8 +30,8 @@ interface DTRLog {
   date: string;
   timeIn?: string;
   timeOut?: string;
-  totalHours: number;
-  status: string;
+  totalHours?: number;
+  status?: string;
   activities?: string;
 }
 

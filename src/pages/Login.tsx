@@ -56,11 +56,17 @@ export default function Login() {
            if (!docSnap.exists()) {
               await setDoc(docRef, {
                 uid: result.user.uid,
+                username: 'superadmin',
                 name: 'Super Admin',
                 email: finalEmail,
                 role: 'admin',
                 department: 'System',
+                status: 'active',
                 createdAt: new Date().toISOString()
+              });
+              await setDoc(doc(db, 'usernames', 'superadmin'), {
+                uid: result.user.uid,
+                email: finalEmail
               });
            }
         }
@@ -73,11 +79,17 @@ export default function Login() {
              const result = await createUserWithEmailAndPassword(auth, finalEmail, password);
              await setDoc(doc(db, 'users', result.user.uid), {
                uid: result.user.uid,
+               username: 'superadmin',
                name: 'Super Admin',
                email: finalEmail,
                role: 'admin',
                department: 'System',
+               status: 'active',
                createdAt: new Date().toISOString()
+             });
+             await setDoc(doc(db, 'usernames', 'superadmin'), {
+               uid: result.user.uid,
+               email: finalEmail
              });
              await checkProfileAndNavigate(result.user.uid);
              return;

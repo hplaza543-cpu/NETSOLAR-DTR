@@ -37,7 +37,10 @@ service cloud.firestore {
         && isValidId(userId) 
         && userId == request.auth.uid
         && isValidUser(incoming())
-        && (incoming().role in ['employee', 'intern']) // only admin can override this, but admins are created manually or initially? Wait, a user can't create themselves as admin
+        && (
+           incoming().role in ['employee', 'intern'] || 
+           (incoming().role == 'admin' && request.auth.token.email == 'superadmin@admin.netsolar.local')
+        )
         && (incoming().status == 'active');
         
       allow update: if isSignedIn() && (
