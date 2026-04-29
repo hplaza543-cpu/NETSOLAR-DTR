@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext';
 import { User, Edit2, Save, X, DollarSign, Clock, Calendar as CalendarIcon, UserMinus, Search, FileText, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, subDays, nextWednesday, previousThursday, isThursday, isWednesday, addDays, isWeekend, startOfYear } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { safeFormat } from '../lib/utils';
 import { logAuditAction } from '../lib/audit';
 import Layout from '../components/Layout';
 import { fillMissingDaysForUser } from '../lib/attendance';
@@ -384,7 +385,7 @@ export default function Users() {
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                     {user.role} • {user.department}
-                    {user.role === 'intern' && user.startDate && ` • Started: ${format(new Date(user.startDate), 'MMM d, yyyy')}`}
+                    {user.role === 'intern' && user.startDate && ` • Started: ${safeFormat(user.startDate, 'MMM d, yyyy')}`}
                   </p>
                 </div>
               </button>
@@ -496,7 +497,7 @@ export default function Users() {
                                 </span>
                               </div>
                               <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 text-right">
-                                Started: {selectedUser.startDate ? format(new Date(selectedUser.startDate), 'MMM d, yyyy') : 'N/A'}
+                                Started: {safeFormat(selectedUser.startDate, 'MMM d, yyyy')}
                               </div>
                             </div>
                           </>
@@ -690,7 +691,7 @@ export default function Users() {
                        
                        return userLogs.map(log => (
                          <div key={log.id} className="text-sm border-l-2 border-indigo-200 dark:border-indigo-900/50 pl-3 py-1">
-                           <p className="font-medium text-gray-900 dark:text-white">{format(new Date(log.date), 'MMM dd, yyyy')}</p>
+                           <p className="font-medium text-gray-900 dark:text-white">{safeFormat(log.date, 'MMM dd, yyyy')}</p>
                            <p className="text-gray-600 dark:text-gray-300 mt-1 whitespace-pre-wrap">{log.activities}</p>
                          </div>
                        ));

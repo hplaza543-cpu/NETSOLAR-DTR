@@ -72,7 +72,14 @@ export default function Dashboard() {
   const [showTimeOutAlert, setShowTimeOutAlert] = useState(false);
   const [error, setError] = useState('');
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const safeFormat = (dateVal: string | Date | number | null | undefined, formatStr: string) => {
+    if (!dateVal) return 'N/A';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return 'N/A';
+    return format(d, formatStr);
+  };
+  
+  const todayStr = safeFormat(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     // Request permission for native OS notifications
@@ -151,11 +158,13 @@ export default function Dashboard() {
       setRecentLogs(logs);
       setCumulativeHours(total);
       
-      const today = logs.find(log => log.date === todayStr);
+      const today = logs.find(log => log.date === todayStr && log.status !== 'absent');
       if (today) {
         setTodayLog(today);
         setActivities(today.activities || '');
         setNotes(today.notes || '');
+      } else {
+        setTodayLog(null);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, 'dtr_logs');
@@ -551,7 +560,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Started: {profile.startDate ? format(new Date(profile.startDate), 'MMM d, yyyy') : 'N/A'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Started: {safeFormat(profile.startDate, 'MMM d, yyyy')}</p>
                   <p className="text-sm font-medium text-amber-600 dark:text-amber-500 mt-1">
                     {Math.min(100, Math.round(((cumulativeHours + activeSessionHours) / profile.targetHours) * 100))}% Completed
                   </p>
@@ -574,7 +583,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-1">Est. Completion</p>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {expectedFinishDate ? format(expectedFinishDate, 'MMM dd, yyyy') : 'N/A'}
+                    {safeFormat(expectedFinishDate, 'MMM dd, yyyy')}
                   </p>
                 </div>
                 <div className="md:col-span-2">
@@ -609,7 +618,7 @@ export default function Dashboard() {
                     <div>
                       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Current Cut-off Allowance</h3>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        {format(new Date(allowance.startStr), 'MMM d')} - {format(new Date(allowance.endStr), 'MMM d, yyyy')}
+                        {safeFormat(allowance.startStr, 'MMM d')} - {safeFormat(allowance.endStr, 'MMM d, yyyy')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -631,7 +640,7 @@ export default function Dashboard() {
                         <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
                           <div>
                             <p className="text-[13px] font-medium text-gray-800 dark:text-gray-200">
-                              {format(new Date(period.startStr), 'MMM d')} - {format(new Date(period.endStr), 'MMM d, yyyy')}
+                              {safeFormat(period.startStr, 'MMM d')} - {safeFormat(period.endStr, 'MMM d, yyyy')}
                             </p>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                               {period.days} days
@@ -806,21 +815,24 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-col">
               {displayedLogs.length === 0 ? (
-                <div className="py-8 text-center text-gray-500 dark:text-gray-400">No logs found for {format(new Date(effectiveDate), 'MMM d, yyyy')}.</div>
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">No logs found for {safeFormat(effectiveDate, 'MMM d, yyyy')}.</div>
               ) : (
                 displayedLogs.map((log) => (
                   <div key={log.id} className="flex flex-col py-3 border-b border-gray-200 dark:border-gray-700 last:border-0 text-[14px]">
                     <div className="flex items-start">
                       <span className="w-[80px] text-gray-500 dark:text-gray-400 font-mono shrink-0">
-                        {format(new Date(log.timeIn), 'hh:mm a')}
+                        {log.timeIn ? safeFormat(log.timeIn, 'hh:mm a') : '-'}
                       </span>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
                           <span className="font-medium text-gray-900 dark:text-gray-100">
-                            {format(new Date(log.date), 'MMM d, yyyy')}
+                            {safeFormat(log.date, 'MMM d, yyyy')}
                           </span>
                           {log.status === 'late' && (
                             <span className="px-2 py-0.5 rounded text-[11px] uppercase bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">Late</span>
+                          )}
+                          {log.status === 'absent' && (
+                            <span className="px-2 py-0.5 rounded text-[11px] uppercase bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">Absent</span>
                           )}
                         </div>
                         {log.activities ? (
@@ -829,7 +841,7 @@ export default function Dashboard() {
                           <span className="text-gray-400 dark:text-gray-500 italic">No activities logged</span>
                         )}
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Out: {log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : (
+                          Out: {log.timeOut ? safeFormat(log.timeOut, 'hh:mm a') : (
                             <span className="flex items-center space-x-2">
                               <span className="text-amber-500 font-medium">Active</span>
                               {profile?.role === 'intern' && log.date !== todayStr && (
@@ -858,7 +870,7 @@ export default function Dashboard() {
       {/* Attendance Overview */}
       <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
-          <BarChartIcon className="w-5 h-5 mr-2 text-amber-500" />
+          <BarChartIcon className="w-5 h-5 mr-2 text-green-500" />
           Attendance Overview (Last 7 Days)
         </h2>
         <div className="h-64">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import Layout from '../components/Layout';
+import { safeFormat } from '../lib/utils';
 import { format, parseISO, startOfYear } from 'date-fns';
 import { Search, Calendar, User as UserIcon, Clock, FileText } from 'lucide-react';
 import { fillMissingDaysForAllUsers, DTRLog } from '../lib/attendance';
@@ -193,11 +194,11 @@ export default function Reports() {
                         <div className="flex flex-col space-y-1.5 w-full">
                           <p className="flex justify-between w-full sm:justify-start">
                             <span className="text-gray-500 dark:text-gray-400 mr-2 sm:w-16">Time In:</span>
-                            <span className="font-medium text-gray-900 dark:text-white">{log.timeIn ? format(new Date(log.timeIn), 'hh:mm a') : 'N/A'}</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{log.timeIn ? safeFormat(log.timeIn, 'hh:mm a') : 'N/A'}</span>
                           </p>
                           <p className="flex justify-between w-full sm:justify-start">
                              <span className="text-gray-500 dark:text-gray-400 mr-2 sm:w-16">Time Out:</span>
-                             <span className="font-medium text-gray-900 dark:text-white">{log.timeOut ? format(new Date(log.timeOut), 'hh:mm a') : 'N/A'}</span>
+                             <span className="font-medium text-gray-900 dark:text-white">{log.timeOut ? safeFormat(log.timeOut, 'hh:mm a') : 'N/A'}</span>
                           </p>
                           <div className="my-1 border-t border-gray-200 dark:border-gray-600"></div>
                           <p className="flex justify-between w-full sm:justify-start">

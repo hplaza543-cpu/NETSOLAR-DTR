@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import Layout from '../components/Layout';
+import { safeFormat } from '../lib/utils';
 import { format, subDays, isSameDay, startOfMonth, startOfYear, parseISO, isBefore, isWeekend } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Bell, Users, Clock, AlertTriangle, Download, AlertCircle, Info } from 'lucide-react';
@@ -96,10 +97,10 @@ export default function AdminDashboard() {
       let timeOut = '';
 
       if (log) {
-        timeIn = format(new Date(log.timeIn), 'hh:mm a');
+        timeIn = safeFormat(log.timeIn, 'hh:mm a');
         if (log.timeOut) {
           status = 'completed';
-          timeOut = format(new Date(log.timeOut), 'hh:mm a');
+          timeOut = safeFormat(log.timeOut, 'hh:mm a');
         } else {
           status = log.status === 'late' ? 'active-late' : 'active-on-time';
         }
@@ -172,8 +173,8 @@ export default function AdminDashboard() {
           user?.name || 'Unknown',
           user?.department || '',
           user?.role || '',
-          log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
-          log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
+          log.timeIn ? safeFormat(log.timeIn, 'HH:mm', '') : '',
+          log.timeOut ? safeFormat(log.timeOut, 'HH:mm', '') : '',
           log.totalHours || '0',
           log.status || '',
           `"${(log.activities || '').replace(/"/g, '""')}"`
@@ -225,8 +226,8 @@ export default function AdminDashboard() {
           log.date,
           user?.name || 'Unknown',
           user?.department || '',
-          log.timeIn ? format(new Date(log.timeIn), 'HH:mm') : '',
-          log.timeOut ? format(new Date(log.timeOut), 'HH:mm') : '',
+          log.timeIn ? safeFormat(log.timeIn, 'HH:mm', '') : '',
+          log.timeOut ? safeFormat(log.timeOut, 'HH:mm', '') : '',
           log.totalHours || '0',
           log.status || '',
           `"${(log.activities || '').replace(/"/g, '""')}"`,
