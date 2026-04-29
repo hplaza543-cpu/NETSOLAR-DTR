@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
-import { Camera, Image as ImageIcon, User, Briefcase, Key } from 'lucide-react';
+import { Camera, Image as ImageIcon, User, Briefcase, Key, X } from 'lucide-react';
 import Layout from '../components/Layout';
 
 const DEPARTMENTS = ['Project Management Engineer', 'HR', 'Marketing', 'Accounting', 'Sales', 'Operations', 'SPT', 'O&M', 'HOME', 'Other'];
@@ -16,8 +16,11 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   
+  const [showCamera, setShowCamera] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -26,6 +29,73 @@ export default function Settings() {
       setPhone(profile.phone || '');
     }
   }, [profile]);
+  
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      setShowCamera(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      setMessage({ text: 'Unable to access camera. Please ensure permissions are granted.', type: 'error' });
+      setShowCamera(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 256;
+      const MAX_HEIGHT = 256;
+      
+      const videoWidth = videoRef.current.videoWidth;
+      const videoHeight = videoRef.current.videoHeight;
+      
+      let width = videoWidth;
+      let height = videoHeight;
+      
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      // Crop to center if we want to make it look square/nice, or just draw stretched/scaled
+      // We'll just draw the scaled video frame
+      ctx?.drawImage(videoRef.current, 0, 0, width, height);
+      
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      setPhotoURL(dataUrl);
+      stopCamera();
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -160,41 +230,76 @@ export default function Settings() {
                   className="w-20 h-20 rounded-full object-cover bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600"
                 />
                 <div className="flex-1 space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    <input type="file" accept="image/*" onChange={handleImageUpload} ref={fileInputRef} className="hidden" />
-                    <input type="file" accept="image/*" capture="user" onChange={handleImageUpload} ref={cameraInputRef} className="hidden" />
-                    
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
-                    >
-                      <ImageIcon className="w-4 h-4 mr-1.5" />
-                      Browse
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
-                    >
-                      <Camera className="w-4 h-4 mr-1.5 text-amber-500" />
-                      Take Photo
-                    </button>
-
-                    {photoURL && profile?.photoURL !== photoURL && (
+                    <div className="flex flex-wrap gap-2">
+                      <input type="file" accept="image/*" onChange={handleImageUpload} ref={fileInputRef} className="hidden" />
+                      
                       <button
                         type="button"
-                        onClick={() => setPhotoURL(profile?.photoURL || '')}
-                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
                       >
-                        Cancel
+                        <ImageIcon className="w-4 h-4 mr-1.5" />
+                        Browse
                       </button>
-                    )}
+                      
+                      <button
+                        type="button"
+                        onClick={startCamera}
+                        className="inline-flex items-center px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                      >
+                        <Camera className="w-4 h-4 mr-1.5 text-amber-500" />
+                        Take Photo
+                      </button>
+
+                      {photoURL && profile?.photoURL !== photoURL && (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoURL(profile?.photoURL || '')}
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">JPG, GIF or PNG. Max 2MB. Resized automatically.</p>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">JPG, GIF or PNG. Max 2MB. Resized automatically.</p>
                 </div>
-              </div>
+
+                {showCamera && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Take Photo</h3>
+                        <button onClick={stopCamera} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="p-4 flex flex-col items-center bg-gray-50 dark:bg-gray-900">
+                        <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                          <video ref={videoRef} className="w-full h-full object-cover transform scale-x-[-1]" playsInline autoPlay muted />
+                          
+                          {/* Face outline guide */}
+                          <div className="absolute inset-0 border-2 border-white/30 rounded-full m-8 pointer-events-none"></div>
+                        </div>
+                      </div>
+                      <div className="p-4 flex justify-between bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                        <button
+                          onClick={stopCamera}
+                          className="px-4 py-2 font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={capturePhoto}
+                          className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center"
+                        >
+                          <Camera className="w-4 h-4 mr-2" />
+                          Capture
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Personal Info Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

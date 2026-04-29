@@ -23,6 +23,7 @@ export default function LeaveRequests() {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usersMap, setUsersMap] = useState<Record<string, any>>({});
   
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -46,6 +47,14 @@ export default function LeaveRequests() {
       let q;
       if (isAdmin) {
         q = query(collection(db, 'leave_requests'), orderBy('createdAt', 'desc'));
+        
+        // Fetch all users for mapping if admin
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const uMap: Record<string, any> = {};
+        usersSnap.forEach(uDoc => {
+          uMap[uDoc.id] = uDoc.data();
+        });
+        setUsersMap(uMap);
       } else {
         q = query(collection(db, 'leave_requests'), where('userId', '==', user?.uid));
       }
@@ -230,13 +239,30 @@ export default function LeaveRequests() {
             {requests.length === 0 ? (
               <div className="p-6 text-center text-gray-500 dark:text-gray-400">No leave requests found.</div>
             ) : (
-              requests.map(request => (
+              requests.map(request => {
+                const reqUser = usersMap[request.userId] || null;
+                return (
                 <div key={request.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <div className="flex items-start space-x-4">
-                    <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg shrink-0">
-                      <Calendar className="w-6 h-6 text-gray-500 dark:text-gray-400" />
-                    </div>
+                    {isAdmin && reqUser ? (
+                      <div className="shrink-0 pt-1">
+                        {reqUser.photoURL ? (
+                           <img src={reqUser.photoURL} alt={reqUser.name} className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700" />
+                        ) : (
+                           <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 text-sm font-medium">
+                             {reqUser.name?.charAt(0).toUpperCase() || 'U'}
+                           </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg shrink-0">
+                        <Calendar className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                      </div>
+                    )}
                     <div>
+                      {isAdmin && reqUser && (
+                        <p className="font-medium text-gray-900 dark:text-white pb-1">{reqUser.name}</p>
+                      )}
                       <div className="flex items-center space-x-2 mb-1">
                         <span className="font-semibold text-gray-900 dark:text-white">{request.type} Leave</span>
                         {getStatusBadge(request.status)}
@@ -266,7 +292,7 @@ export default function LeaveRequests() {
                     </div>
                   )}
                 </div>
-              ))
+              )})
             )}
           </div>
         </div>

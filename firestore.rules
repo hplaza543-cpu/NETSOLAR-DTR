@@ -25,7 +25,7 @@ service cloud.firestore {
         && data.createdAt is string && data.createdAt.size() <= 50
         && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() <= 20))
         && (!data.keys().hasAny(['department']) || (data.department is string && data.department.size() <= 50))
-        && (!data.keys().hasAny(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 200))
+        && (!data.keys().hasAny(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 1000000))
         && (!data.keys().hasAny(['targetHours']) || data.targetHours is number)
         && (!data.keys().hasAny(['startDate']) || (data.startDate is string && data.startDate.size() <= 50));
     }
