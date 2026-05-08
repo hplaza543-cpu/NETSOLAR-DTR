@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { collection, query, orderBy, limit, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, onSnapshot, where } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useAuth } from '../lib/AuthContext';
 import { Sun, Moon, LogOut, LayoutDashboard, Users, FileText, Settings, Calendar, FileSpreadsheet, Megaphone, Edit3, Bell, Search, HelpCircle, User } from 'lucide-react';
@@ -23,6 +23,9 @@ export default function Layout({ children, title }: LayoutProps) {
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [pendingAdjustmentCount, setPendingAdjustmentCount] = useState(0);
 
   useEffect(() => {
     if (!profile) return;
@@ -55,7 +58,26 @@ export default function Layout({ children, title }: LayoutProps) {
       console.error("Error listening to announcements:", error);
     });
 
-    return () => unsubscribe();
+    let unsubscribeLeaves: (() => void) | undefined;
+    let unsubscribeAdjustments: (() => void) | undefined;
+
+    if (profile.role === 'admin' || profile.role === 'accounting') {
+      const leavesQ = query(collection(db, 'leave_requests'), where('status', '==', 'pending'));
+      unsubscribeLeaves = onSnapshot(leavesQ, (snap) => {
+        setPendingLeaveCount(snap.docs.length);
+      }, (err) => console.error(err));
+
+      const adjQ = query(collection(db, 'adjustments'), where('status', '==', 'pending'));
+      unsubscribeAdjustments = onSnapshot(adjQ, (snap) => {
+        setPendingAdjustmentCount(snap.docs.length);
+      }, (err) => console.error(err));
+    }
+
+    return () => {
+      unsubscribe();
+      if (unsubscribeLeaves) unsubscribeLeaves();
+      if (unsubscribeAdjustments) unsubscribeAdjustments();
+    };
   }, [location.pathname, profile]);
 
   // Handle clicking outside of the notification popover
@@ -143,9 +165,17 @@ export default function Layout({ children, title }: LayoutProps) {
                       <Icon className={cn("flex-shrink-0 h-6 w-6 ml-0.5", isActive ? "text-amber-500 dark:text-amber-400" : "text-gray-400 dark:text-gray-500")} strokeWidth={isActive ? 2.5 : 2} />
                       <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap flex-1 flex items-center justify-between text-[15px]">
                         {item.name}
-                        {item.path === '/announcements' && hasNewAnnouncements && (
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></span>
-                        )}
+                        <div className="flex items-center">
+                          {item.path === '/announcements' && hasNewAnnouncements && (
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></span>
+                          )}
+                          {item.path === '/leave-requests' && pendingLeaveCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full mr-2">{pendingLeaveCount}</span>
+                          )}
+                          {item.path === '/adjustments' && pendingAdjustmentCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full mr-2">{pendingAdjustmentCount}</span>
+                          )}
+                        </div>
                       </div>
                     </Link>
                   );
@@ -230,7 +260,7 @@ export default function Layout({ children, title }: LayoutProps) {
                 )}
               >
                 <Bell className="w-5 h-5" />
-                {hasNewAnnouncements && (
+                {(hasNewAnnouncements || pendingLeaveCount > 0 || pendingAdjustmentCount > 0) && (
                   <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-red-500 border border-white dark:border-gray-800 animate-pulse"></span>
                 )}
               </button>
@@ -242,8 +272,46 @@ export default function Layout({ children, title }: LayoutProps) {
                     <h3 className="font-semibold text-gray-900 dark:text-white">Notifications</h3>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {recentAnnouncements.length > 0 ? (
+                    {(recentAnnouncements.length > 0 || pendingLeaveCount > 0 || pendingAdjustmentCount > 0) ? (
                       <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {pendingLeaveCount > 0 && (
+                          <div 
+                            onClick={() => {
+                              navigate('/leave-requests');
+                              setIsNotificationOpen(false);
+                            }}
+                            className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-start">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5">
+                                <Calendar className="w-4 h-4" />
+                              </div>
+                              <div className="ml-3 flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">Pending Leave Requests</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">You have {pendingLeaveCount} pending leave request{pendingLeaveCount > 1 ? 's' : ''} to review.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {pendingAdjustmentCount > 0 && (
+                          <div 
+                            onClick={() => {
+                              navigate('/adjustments');
+                              setIsNotificationOpen(false);
+                            }}
+                            className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-start">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5">
+                                <Edit3 className="w-4 h-4" />
+                              </div>
+                              <div className="ml-3 flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">Pending Log Adjustments</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">You have {pendingAdjustmentCount} pending adjustment request{pendingAdjustmentCount > 1 ? 's' : ''} to review.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {recentAnnouncements.map((announcement) => (
                           <div 
                             key={announcement.id}
@@ -254,7 +322,7 @@ export default function Layout({ children, title }: LayoutProps) {
                             className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                           >
                             <div className="flex items-start">
-                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5">
+                              <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5">
                                 <Megaphone className="w-4 h-4" />
                               </div>
                               <div className="ml-3 flex-1 min-w-0">
@@ -328,6 +396,12 @@ export default function Layout({ children, title }: LayoutProps) {
                     <Icon className="w-5 h-5" />
                     {item.path === '/announcements' && hasNewAnnouncements && (
                       <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-white dark:border-gray-800"></span>
+                    )}
+                    {item.path === '/leave-requests' && pendingLeaveCount > 0 && (
+                      <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center">{pendingLeaveCount}</span>
+                    )}
+                    {item.path === '/adjustments' && pendingAdjustmentCount > 0 && (
+                      <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full min-w-[16px] text-center">{pendingAdjustmentCount}</span>
                     )}
                   </div>
                   <span className="text-[10px] font-medium">{item.name.split(' ')[0]}</span>

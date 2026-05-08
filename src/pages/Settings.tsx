@@ -19,6 +19,7 @@ export default function Settings() {
   const [showCamera, setShowCamera] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -38,6 +39,9 @@ export default function Settings() {
 
   const startCamera = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API not supported in this browser context.");
+      }
       setShowCamera(true);
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       streamRef.current = stream;
@@ -45,10 +49,23 @@ export default function Settings() {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error accessing camera:", err);
-      setMessage({ text: 'Unable to access camera. Please ensure permissions are granted.', type: 'error' });
       setShowCamera(false);
+      
+      const isDenied = err.name === 'NotAllowedError' || 
+                       err.message?.includes('Permission denied') ||
+                       err.message?.includes('supported');
+                       
+      if (isDenied) {
+        setMessage({ text: 'Camera permission denied or unavailable. Trying native camera fallback...', type: 'warning' });
+        setTimeout(() => {
+          cameraInputRef.current?.click();
+          setMessage({ text: '', type: '' });
+        }, 1500);
+      } else {
+        setMessage({ text: 'Unable to access camera.', type: 'error' });
+      }
     }
   };
 
@@ -232,6 +249,7 @@ export default function Settings() {
                 <div className="flex-1 space-y-2">
                     <div className="flex flex-wrap gap-2">
                       <input type="file" accept="image/*" onChange={handleImageUpload} ref={fileInputRef} className="hidden" />
+                      <input type="file" accept="image/*" capture="user" onChange={handleImageUpload} ref={cameraInputRef} className="hidden" />
                       
                       <button
                         type="button"
@@ -276,7 +294,7 @@ export default function Settings() {
                       </div>
                       <div className="p-4 flex flex-col items-center bg-gray-50 dark:bg-gray-900">
                         <div className="relative w-full aspect-square bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                          <video ref={videoRef} className="w-full h-full object-cover transform scale-x-[-1]" playsInline autoPlay muted />
+                          <video ref={videoRef} className="w-full h-full object-cover" playsInline autoPlay muted />
                           
                           {/* Face outline guide */}
                           <div className="absolute inset-0 border-2 border-white/30 rounded-full m-8 pointer-events-none"></div>
